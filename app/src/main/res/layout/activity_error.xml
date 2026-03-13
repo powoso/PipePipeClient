@@ -144,6 +144,12 @@
                 android:text="@string/copy_for_github" />
 
             <Button
+                android:id="@+id/errorReportExportBundleButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/export_debug_bundle_title" />
+
+            <Button
                 android:id="@+id/errorReportGitHubButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

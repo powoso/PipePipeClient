@@ -70,6 +70,28 @@ final String defaultDebugUpdateApiUrl =
 final String defaultDebugUpdateReleaseUrl =
         "https://github.com/powoso/PipePipe/releases/tag/daily-latest"
 final String defaultDebugUpdateSourceLabel = "powoso/PipePipe / daily-latest"
+final String signingStoreFilePath = readBuildSetting("pipepipe.signingStoreFile", "").trim()
+final String signingStorePassword = readBuildSetting("pipepipe.signingStorePassword", "").trim()
+final String signingKeyAlias = readBuildSetting("pipepipe.signingKeyAlias", "").trim()
+final String signingKeyPassword = readBuildSetting("pipepipe.signingKeyPassword", "").trim()
+final boolean hasAnyCustomSigningValue = !signingStoreFilePath.isEmpty()
+        || !signingStorePassword.isEmpty()
+        || !signingKeyAlias.isEmpty()
+        || !signingKeyPassword.isEmpty()
+final File sharedSigningStoreFile = signingStoreFilePath.isEmpty()
+        ? null
+        : rootProject.file(signingStoreFilePath)
+final boolean hasCustomSigning = sharedSigningStoreFile != null
+        && sharedSigningStoreFile.exists()
+        && !signingStorePassword.isEmpty()
+        && !signingKeyAlias.isEmpty()
+        && !signingKeyPassword.isEmpty()
+
+if (hasAnyCustomSigningValue && !hasCustomSigning) {
+    throw new GradleException("Incomplete pipepipe signing configuration. " +
+            "Expected pipepipe.signingStoreFile, pipepipe.signingStorePassword, " +
+            "pipepipe.signingKeyAlias, and pipepipe.signingKeyPassword.")
+}
 
 android {
     compileSdk 33
@@ -121,9 +143,24 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasCustomSigning) {
+            dailyShared {
+                storeFile sharedSigningStoreFile
+                storePassword signingStorePassword
+                keyAlias signingKeyAlias
+                keyPassword signingKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             debuggable true
+
+            if (hasCustomSigning) {
+                signingConfig signingConfigs.dailyShared
+            }
 
             applicationIdSuffix readBuildSetting("pipepipe.debugPackageSuffix", ".debug")
             resValue "string", "app_name", readBuildSetting("pipepipe.debugAppName",
@@ -162,6 +199,9 @@ android {
                 applicationIdSuffix System.getProperty('packageSuffix')
                 resValue "string", "app_name", "PipePipe " + System.getProperty('packageSuffix')
                 archivesBaseName = 'PipePipe_' + System.getProperty('packageSuffix')
+            }
+            if (hasCustomSigning) {
+                signingConfig signingConfigs.dailyShared
             }
             minifyEnabled true
             shrinkResources false // disabled to fix F-Droid's reproducible build

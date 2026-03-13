@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResult;
@@ -20,15 +21,13 @@ import org.schabi.newpipe.R;
 import org.schabi.newpipe.error.ErrorUtil;
 import org.schabi.newpipe.streams.io.NoFileManagerSafeGuard;
 import org.schabi.newpipe.streams.io.StoredFileHelper;
+import org.schabi.newpipe.util.DebugBundleHelper;
 import org.schabi.newpipe.util.NavigationHelper;
 import org.schabi.newpipe.util.ZipHelper;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -40,14 +39,13 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
 
     private enum BackupType {
         APP_DATA,
-        SETTINGS_ONLY
+        SETTINGS_ONLY,
+        DEBUG_BUNDLE
     }
-
-    private final SimpleDateFormat exportDateFormat
-            = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US);
 
     private ContentSettingsManager manager;
     private String importExportDataPathKey;
+    private String pendingImportArchiveSummary;
     private BackupType pendingImportType = BackupType.APP_DATA;
     private BackupType pendingExportType = BackupType.APP_DATA;
 
@@ -79,7 +77,7 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
         final Preference exportDataPreference = requirePreference(R.string.export_data);
         exportDataPreference.setOnPreferenceClickListener((Preference p) -> {
             pendingExportType = BackupType.APP_DATA;
-            launchExportPicker("PipePipeData-");
+            launchExportPicker("PipePipeData-v" + org.schabi.newpipe.BuildConfig.VERSION_NAME + "-");
             return true;
         });
 
@@ -95,7 +93,17 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
                 requirePreference(R.string.export_settings_data);
         exportSettingsPreference.setOnPreferenceClickListener((Preference p) -> {
             pendingExportType = BackupType.SETTINGS_ONLY;
-            launchExportPicker("PipePipeSettings-");
+            launchExportPicker("PipePipeSettings-v"
+                    + org.schabi.newpipe.BuildConfig.VERSION_NAME + "-");
+            return true;
+        });
+
+        final Preference exportDebugBundlePreference =
+                requirePreference(R.string.export_debug_bundle);
+        exportDebugBundlePreference.setOnPreferenceClickListener((Preference p) -> {
+            pendingExportType = BackupType.DEBUG_BUNDLE;
+            launchExportPicker("PipePipeDebug-v"
+                    + org.schabi.newpipe.BuildConfig.VERSION_NAME + "-");
             return true;
         });
     }
@@ -114,7 +122,7 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
         NoFileManagerSafeGuard.launchSafe(
                 requestExportPathLauncher,
                 StoredFileHelper.getNewPicker(requireContext(),
-                        filenamePrefix + exportDateFormat.format(new Date()) + ".zip",
+                        DebugBundleHelper.createExportFilename(filenamePrefix),
                         ZIP_MIME_TYPE, getImportExportDataUri()),
                 TAG,
                 getContext()
@@ -128,7 +136,9 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
             final StoredFileHelper file = new StoredFileHelper(getContext(),
                     result.getData().getData(), ZIP_MIME_TYPE);
 
-            if (pendingExportType == BackupType.SETTINGS_ONLY) {
+            if (pendingExportType == BackupType.DEBUG_BUNDLE) {
+                exportDebugBundle(file, lastExportDataUri);
+            } else if (pendingExportType == BackupType.SETTINGS_ONLY) {
                 exportSettings(file, lastExportDataUri);
             } else {
                 exportDatabase(file, lastExportDataUri);
@@ -142,11 +152,10 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
             final Uri lastImportDataUri = result.getData().getData();
             final StoredFileHelper file = new StoredFileHelper(getContext(),
                     result.getData().getData(), ZIP_MIME_TYPE);
+            pendingImportArchiveSummary = manager.readArchiveSummary(requireContext(), file);
 
             new AlertDialog.Builder(requireActivity())
-                    .setMessage(pendingImportType == BackupType.SETTINGS_ONLY
-                            ? R.string.override_current_settings
-                            : R.string.override_current_data)
+                    .setMessage(buildImportConfirmationMessage())
                     .setPositiveButton(R.string.ok, (d, id) -> {
                         if (pendingImportType == BackupType.SETTINGS_ONLY) {
                             importSettings(file, lastImportDataUri);
@@ -166,7 +175,7 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
 
             final SharedPreferences preferences = PreferenceManager
                     .getDefaultSharedPreferences(requireContext());
-            manager.exportDatabase(preferences, file);
+            manager.exportDatabase(requireContext(), preferences, file);
 
             saveLastImportExportDataUri(exportDataUri);
             Toast.makeText(getContext(), R.string.export_complete_toast, Toast.LENGTH_SHORT).show();
@@ -181,7 +190,7 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
         try {
             final SharedPreferences preferences = PreferenceManager
                     .getDefaultSharedPreferences(requireContext());
-            manager.exportSettings(preferences, file);
+            manager.exportSettings(requireContext(), preferences, file);
 
             saveLastImportExportDataUri(exportDataUri);
             Toast.makeText(getContext(), R.string.export_settings_complete_toast,
@@ -190,6 +199,17 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
             ErrorUtil.showUiErrorSnackbar(this, "Exporting settings", e);
         } finally {
             manager.deleteSettingsFile();
+        }
+    }
+
+    private void exportDebugBundle(final StoredFileHelper file, final Uri exportDataUri) {
+        try {
+            DebugBundleHelper.exportDebugBundle(requireContext(), file, null, null);
+            saveLastImportExportDataUri(exportDataUri);
+            Toast.makeText(getContext(), R.string.export_debug_bundle_complete_toast,
+                    Toast.LENGTH_SHORT).show();
+        } catch (final Exception e) {
+            ErrorUtil.showUiErrorSnackbar(this, "Exporting debug bundle", e);
         }
     }
 
@@ -212,6 +232,7 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
             if (manager.extractSettings(file)) {
                 final AlertDialog.Builder alert = new AlertDialog.Builder(requireContext());
                 alert.setTitle(R.string.import_settings);
+                alert.setMessage(buildSettingsImportMessage());
 
                 alert.setNegativeButton(R.string.cancel, (dialog, which) -> {
                     dialog.dismiss();
@@ -296,5 +317,25 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
         defaultPreferences.edit()
                 .putString(importExportDataPathKey, importExportDataUri.toString())
                 .apply();
+    }
+
+    private String buildImportConfirmationMessage() {
+        final String baseMessage = getString(pendingImportType == BackupType.SETTINGS_ONLY
+                ? R.string.override_current_settings
+                : R.string.override_current_data);
+        if (TextUtils.isEmpty(pendingImportArchiveSummary)) {
+            return baseMessage;
+        }
+        return baseMessage + "\n\n" + getString(R.string.backup_details_heading)
+                + "\n" + pendingImportArchiveSummary;
+    }
+
+    private String buildSettingsImportMessage() {
+        if (TextUtils.isEmpty(pendingImportArchiveSummary)) {
+            return getString(R.string.import_settings);
+        }
+        return getString(R.string.import_settings) + "\n\n"
+                + getString(R.string.backup_details_heading)
+                + "\n" + pendingImportArchiveSummary;
     }
 }

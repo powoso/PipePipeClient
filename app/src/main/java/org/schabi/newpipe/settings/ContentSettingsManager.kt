@@ -1,9 +1,11 @@
 package org.schabi.newpipe.settings
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import org.schabi.newpipe.streams.io.SharpOutputStream
 import org.schabi.newpipe.streams.io.StoredFileHelper
+import org.schabi.newpipe.util.DebugBundleHelper
 import org.schabi.newpipe.util.ZipHelper
 import java.io.BufferedOutputStream
 import java.io.FileInputStream
@@ -23,24 +25,38 @@ class ContentSettingsManager(private val fileLocator: NewPipeFileLocator) {
      * It also creates the file.
      */
     @Throws(Exception::class)
-    fun exportDatabase(preferences: SharedPreferences, file: StoredFileHelper) {
+    fun exportDatabase(
+        context: Context,
+        preferences: SharedPreferences,
+        file: StoredFileHelper
+    ) {
         file.create()
         ZipOutputStream(BufferedOutputStream(SharpOutputStream(file.stream)))
             .use { outZip ->
                 ZipHelper.addFileToZip(outZip, fileLocator.db.path, "newpipe.db")
                 writeSettingsSnapshot(preferences)
                 ZipHelper.addFileToZip(outZip, fileLocator.settings.path, "newpipe.settings")
+                DebugBundleHelper.addAppDataArchiveEntries(context, outZip)
             }
     }
 
     @Throws(Exception::class)
-    fun exportSettings(preferences: SharedPreferences, file: StoredFileHelper) {
+    fun exportSettings(
+        context: Context,
+        preferences: SharedPreferences,
+        file: StoredFileHelper
+    ) {
         file.create()
         ZipOutputStream(BufferedOutputStream(SharpOutputStream(file.stream)))
             .use { outZip ->
                 writeSettingsSnapshot(preferences)
                 ZipHelper.addFileToZip(outZip, fileLocator.settings.path, "newpipe.settings")
+                DebugBundleHelper.addSettingsArchiveEntries(context, outZip)
             }
+    }
+
+    fun readArchiveSummary(context: Context, file: StoredFileHelper): String? {
+        return DebugBundleHelper.readArchiveSummary(context, file)
     }
 
     fun deleteSettingsFile() {

@@ -9,21 +9,33 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.widget.Toast;
+
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
+import androidx.preference.PreferenceManager;
+
 import com.grack.nanojson.JsonWriter;
+
 import org.schabi.newpipe.BuildConfig;
 import org.schabi.newpipe.MainActivity;
 import org.schabi.newpipe.R;
 import org.schabi.newpipe.databinding.ActivityErrorBinding;
 import org.schabi.newpipe.extractor.downloader.Downloader;
+import org.schabi.newpipe.streams.io.NoFileManagerSafeGuard;
+import org.schabi.newpipe.streams.io.StoredFileHelper;
+import org.schabi.newpipe.util.DebugBundleHelper;
 import org.schabi.newpipe.util.ErrorMatcher;
 import org.schabi.newpipe.util.Localization;
 import org.schabi.newpipe.util.ThemeHelper;
@@ -82,6 +94,9 @@ public class ErrorActivity extends AppCompatActivity {
     private String currentTimeStamp;
 
     private ActivityErrorBinding activityErrorBinding;
+    private final ActivityResultLauncher<Intent> exportDebugBundleLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                    this::exportDebugBundleResult);
 
 
     ////////////////////////////////////////////////////////////////////////
@@ -121,6 +136,9 @@ public class ErrorActivity extends AppCompatActivity {
 
         activityErrorBinding.errorReportCopyButton.setOnClickListener(v ->
                 ShareUtils.copyToClipboard(this, buildMarkdown()));
+
+        activityErrorBinding.errorReportExportBundleButton.setOnClickListener(v ->
+                launchDebugBundleExport());
 
         activityErrorBinding.errorReportGitHubButton.setOnClickListener(v ->
                 openPrivacyPolicyDialog(this, "GITHUB"));
@@ -205,6 +223,41 @@ public class ErrorActivity extends AppCompatActivity {
                 return true;
             default:
                 return false;
+        }
+    }
+
+    private void launchDebugBundleExport() {
+        NoFileManagerSafeGuard.launchSafe(
+                exportDebugBundleLauncher,
+                StoredFileHelper.getNewPicker(
+                        this,
+                        DebugBundleHelper.createExportFilename("PipePipeDebug-v"
+                                + BuildConfig.VERSION_NAME + "-"),
+                        DebugBundleHelper.ZIP_MIME_TYPE,
+                        getImportExportDataUri()
+                ),
+                TAG,
+                this
+        );
+    }
+
+    private void exportDebugBundleResult(final ActivityResult result) {
+        assureCorrectAppLanguage(this);
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+            return;
+        }
+
+        final Uri exportDataUri = result.getData().getData();
+        final StoredFileHelper file = new StoredFileHelper(this, exportDataUri,
+                DebugBundleHelper.ZIP_MIME_TYPE);
+        try {
+            DebugBundleHelper.exportDebugBundle(this, file, errorInfo,
+                    activityErrorBinding.errorCommentBox.getText().toString());
+            saveLastImportExportDataUri(exportDataUri);
+            Toast.makeText(this, R.string.export_debug_bundle_complete_toast,
+                    Toast.LENGTH_SHORT).show();
+        } catch (final Exception e) {
+            ErrorUtil.showUiErrorSnackbar(this, "Exporting debug bundle", e);
         }
     }
 
@@ -375,6 +428,19 @@ public class ErrorActivity extends AppCompatActivity {
 
     private String getAppLanguage() {
         return Localization.getAppLocale(getApplicationContext()).toString();
+    }
+
+    private Uri getImportExportDataUri() {
+        final String path = PreferenceManager.getDefaultSharedPreferences(this)
+                .getString(getString(R.string.import_export_data_path), null);
+        return TextUtils.isEmpty(path) ? null : Uri.parse(path);
+    }
+
+    private void saveLastImportExportDataUri(final Uri importExportDataUri) {
+        PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putString(getString(R.string.import_export_data_path),
+                        importExportDataUri.toString())
+                .apply();
     }
 
     private String getOsString() {

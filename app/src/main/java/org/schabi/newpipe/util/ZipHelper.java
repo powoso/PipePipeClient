@@ -3,10 +3,12 @@ package org.schabi.newpipe.util;
 import org.schabi.newpipe.streams.io.SharpInputStream;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -62,6 +64,23 @@ public final class ZipHelper {
     }
 
     /**
+     * Adds a UTF-8 text file to a zip archive.
+     *
+     * @param outZip   The ZipOutputStream where the data should be stored in
+     * @param name     The path of the file inside the zip.
+     * @param contents The UTF-8 content to store.
+     * @throws IOException if the entry cannot be written
+     */
+    public static void addStringToZip(final ZipOutputStream outZip,
+                                      final String name,
+                                      final String contents) throws IOException {
+        final ZipEntry entry = new ZipEntry(name);
+        outZip.putNextEntry(entry);
+        outZip.write(contents.getBytes(StandardCharsets.UTF_8));
+        outZip.closeEntry();
+    }
+
+    /**
      * This will extract data from ZipInputStream.
      * Caution this will override the original file.
      *
@@ -102,6 +121,37 @@ public final class ZipHelper {
             }
             return found;
         }
+    }
+
+    /**
+     * Reads a UTF-8 text file from a zip archive.
+     *
+     * @param zipFile The zip file
+     * @param name The path of the file inside the zip.
+     * @return the text content if found, otherwise {@code null}
+     * @throws Exception if reading the zip fails
+     */
+    public static String readTextFileFromZip(final StoredFileHelper zipFile,
+                                             final String name) throws Exception {
+        try (ZipInputStream inZip = new ZipInputStream(new BufferedInputStream(
+                new SharpInputStream(zipFile.getStream())))) {
+            final byte[] data = new byte[BUFFER_SIZE];
+            ZipEntry ze;
+
+            while ((ze = inZip.getNextEntry()) != null) {
+                if (ze.getName().equals(name)) {
+                    try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                        int count;
+                        while ((count = inZip.read(data)) != -1) {
+                            out.write(data, 0, count);
+                        }
+                        inZip.closeEntry();
+                        return out.toString(StandardCharsets.UTF_8.name());
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     public static boolean isValidZipFile(final StoredFileHelper file) {

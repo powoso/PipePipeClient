@@ -373,6 +373,7 @@
     <string name="export_data">export_data</string>
     <string name="import_settings_data">import_settings_data</string>
     <string name="export_settings_data">export_settings_data</string>
+    <string name="export_debug_bundle">export_debug_bundle</string>
 
     <string name="clear_cookie_key">clear_cookie</string>
 
