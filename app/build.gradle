@@ -1,3 +1,8 @@
+import java.util.Properties
+import java.io.ByteArrayOutputStream
+import java.util.Date
+import java.util.TimeZone
+
 plugins {
     id "com.android.application"
     id "kotlin-android"
@@ -6,6 +11,65 @@ plugins {
     id "checkstyle"
     id "org.sonarqube" version "3.3"
 }
+
+final Properties localBuildProperties = new Properties()
+final File localBuildPropertiesFile = rootProject.file("local.properties")
+if (localBuildPropertiesFile.exists()) {
+    localBuildPropertiesFile.withInputStream { stream ->
+        localBuildProperties.load(stream)
+    }
+}
+
+def readBuildSetting = { String name, String fallback ->
+    final Object gradleValue = project.findProperty(name)
+    if (gradleValue != null) {
+        return gradleValue.toString()
+    }
+
+    final String localValue = localBuildProperties.getProperty(name)
+    return localValue != null ? localValue : fallback
+}
+
+def escapeBuildConfigString = { String value ->
+    value.replace("\\", "\\\\").replace("\"", "\\\"")
+}
+
+def readGitRevision = { File repoDir ->
+    if (!repoDir.exists()) {
+        return "unknown"
+    }
+
+    final ByteArrayOutputStream stdout = new ByteArrayOutputStream()
+    try {
+        project.exec {
+            workingDir repoDir
+            commandLine "git", "rev-parse", "--short", "HEAD"
+            standardOutput = stdout
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue true
+        }
+    } catch (Exception ignored) {
+        return "unknown"
+    }
+
+    final String revision = stdout.toString().trim()
+    return revision.isEmpty() ? "unknown" : revision
+}
+
+final String appGitRevision = readBuildSetting("pipepipe.appGitCommit",
+        readGitRevision(rootProject.projectDir))
+final String extractorGitRevision = readBuildSetting("pipepipe.extractorGitCommit",
+        readGitRevision(rootProject.file("../PipePipeExtractor")))
+final String generatedBuildId = new Date().format("yyyyMMddHHmmss",
+        TimeZone.getTimeZone("UTC")) + "-" + appGitRevision
+final String defaultStableUpdateApiUrl = "https://api.github.com/repos/powoso/PipePipe/releases"
+final String defaultStableUpdateReleaseUrl = "https://github.com/powoso/PipePipe/releases"
+final String defaultStableUpdateSourceLabel = "powoso/PipePipe releases"
+final String defaultDebugUpdateApiUrl =
+        "https://api.github.com/repos/powoso/PipePipe/releases/tags/daily-latest"
+final String defaultDebugUpdateReleaseUrl =
+        "https://github.com/powoso/PipePipe/releases/tag/daily-latest"
+final String defaultDebugUpdateSourceLabel = "powoso/PipePipe / daily-latest"
 
 android {
     compileSdk 33
@@ -21,6 +85,11 @@ android {
         archivesBaseName = 'PipePipe_' + versionName
 
         multiDexEnabled true
+
+        buildConfigField "String", "APP_GIT_COMMIT",
+                "\"${escapeBuildConfigString(appGitRevision)}\""
+        buildConfigField "String", "EXTRACTOR_GIT_COMMIT",
+                "\"${escapeBuildConfigString(extractorGitRevision)}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -56,18 +125,33 @@ android {
         debug {
             debuggable true
 
-            // suffix the app id and the app name with git branch name
-            def workingBranch = getGitWorkingBranch()
-            def normalizedWorkingBranch = workingBranch.replaceFirst("^[^A-Za-z]+", "").replaceAll("[^0-9A-Za-z]+", "")
-            if (true) {
-                // default values when branch name could not be determined or is master or dev
-                applicationIdSuffix ".debug"
-                resValue "string", "app_name", "PipePipe Debug"
-            } else {
-                applicationIdSuffix ".debug." + normalizedWorkingBranch
-                resValue "string", "app_name", "PipePipe " + workingBranch
-                archivesBaseName = 'PipePipe_' + normalizedWorkingBranch
-            }
+            applicationIdSuffix readBuildSetting("pipepipe.debugPackageSuffix", ".debug")
+            resValue "string", "app_name", readBuildSetting("pipepipe.debugAppName",
+                    "PipePipe Debug")
+            archivesBaseName = readBuildSetting("pipepipe.debugArchiveBaseName",
+                    "PipePipe_debug")
+            buildConfigField "String", "BUILD_CHANNEL",
+                    "\"${escapeBuildConfigString(readBuildSetting("pipepipe.buildChannel",
+                            "Daily"))}\""
+            buildConfigField "String", "BUILD_VARIANT_LABEL", "\"debug\""
+            buildConfigField "String", "UPDATE_CHANNEL_NAME",
+                    "\"${escapeBuildConfigString(readBuildSetting(
+                            "pipepipe.debugUpdateChannelName", "GitHub Daily"))}\""
+            buildConfigField "String", "UPDATE_SOURCE_LABEL",
+                    "\"${escapeBuildConfigString(readBuildSetting(
+                            "pipepipe.debugUpdateSourceLabel",
+                            defaultDebugUpdateSourceLabel))}\""
+            buildConfigField "String", "UPDATE_API_URL",
+                    "\"${escapeBuildConfigString(readBuildSetting("pipepipe.debugUpdateApiUrl",
+                            defaultDebugUpdateApiUrl))}\""
+            buildConfigField "String", "UPDATE_RELEASES_URL",
+                    "\"${escapeBuildConfigString(readBuildSetting(
+                            "pipepipe.debugUpdateReleaseUrl",
+                            defaultDebugUpdateReleaseUrl))}\""
+            buildConfigField "String", "UPDATE_BUILD_ID",
+                    "\"${escapeBuildConfigString(readBuildSetting(
+                            "pipepipe.updateBuildId", generatedBuildId))}\""
+            buildConfigField "boolean", "UPDATE_ROLLING_RELEASE", "true"
         }
 
         // Keep the release build type at the end of the list to override 'archivesBaseName' of
@@ -82,6 +166,26 @@ android {
             minifyEnabled true
             shrinkResources false // disabled to fix F-Droid's reproducible build
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            buildConfigField "String", "BUILD_CHANNEL", "\"Release\""
+            buildConfigField "String", "BUILD_VARIANT_LABEL", "\"release\""
+            buildConfigField "String", "UPDATE_CHANNEL_NAME",
+                    "\"${escapeBuildConfigString(readBuildSetting(
+                            "pipepipe.releaseUpdateChannelName", "Stable"))}\""
+            buildConfigField "String", "UPDATE_SOURCE_LABEL",
+                    "\"${escapeBuildConfigString(readBuildSetting(
+                            "pipepipe.releaseUpdateSourceLabel",
+                            defaultStableUpdateSourceLabel))}\""
+            buildConfigField "String", "UPDATE_API_URL",
+                    "\"${escapeBuildConfigString(readBuildSetting("pipepipe.releaseUpdateApiUrl",
+                            defaultStableUpdateApiUrl))}\""
+            buildConfigField "String", "UPDATE_RELEASES_URL",
+                    "\"${escapeBuildConfigString(readBuildSetting(
+                            "pipepipe.releaseUpdateReleaseUrl",
+                            defaultStableUpdateReleaseUrl))}\""
+            buildConfigField "String", "UPDATE_BUILD_ID",
+                    "\"${escapeBuildConfigString(readBuildSetting(
+                            "pipepipe.releaseBuildId", generatedBuildId))}\""
+            buildConfigField "boolean", "UPDATE_ROLLING_RELEASE", "false"
         }
     }
 
@@ -336,20 +440,4 @@ dependencies {
 //    implementation 'com.arthenica:ffmpeg-kit-https:6.0-2.LTS'
     implementation project(':ffmpeg')
     implementation 'com.arthenica:smart-exception-java:0.2.1'
-}
-
-static String getGitWorkingBranch() {
-    try {
-        def gitProcess = "git rev-parse --abbrev-ref HEAD".execute()
-        gitProcess.waitFor()
-        if (gitProcess.exitValue() == 0) {
-            return gitProcess.text.trim()
-        } else {
-            // not a git repository
-            return ""
-        }
-    } catch (IOException ignored) {
-        // git was not found
-        return ""
-    }
 }

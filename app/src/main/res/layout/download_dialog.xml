@@ -82,6 +82,7 @@
         android:text="@string/msg_threads" />
 
     <LinearLayout
+        android:id="@+id/threads_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/threads_text_view"
@@ -106,4 +107,16 @@
             android:max="31"
             android:progress="3" />
     </LinearLayout>
+
+    <org.schabi.newpipe.views.NewPipeTextView
+        android:id="@+id/threads_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/threads_row"
+        android:layout_marginLeft="24dp"
+        android:layout_marginRight="24dp"
+        android:layout_marginBottom="12dp"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="12sp"
+        tools:text="2 or 3 threads are a good default for video downloads." />
 </RelativeLayout>

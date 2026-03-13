@@ -15,4 +15,18 @@
             android:title="@string/export_data_title"
             app:singleLineTitle="false"
             app:iconSpaceReserved="false" />
+
+    <Preference
+            android:key="@string/import_settings_data"
+            android:summary="@string/import_settings_data_summary"
+            android:title="@string/import_settings_data_title"
+            app:singleLineTitle="false"
+            app:iconSpaceReserved="false" />
+
+    <Preference
+            android:key="@string/export_settings_data"
+            android:summary="@string/export_settings_data_summary"
+            android:title="@string/export_settings_data_title"
+            app:singleLineTitle="false"
+            app:iconSpaceReserved="false" />
 </PreferenceScreen>

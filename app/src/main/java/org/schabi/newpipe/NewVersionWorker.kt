@@ -30,32 +30,32 @@ class NewVersionWorker(
     context: Context,
     workerParams: WorkerParameters
 ) : Worker(context, workerParams) {
-
-    private fun compareVersionName(buildVersionCodes: List<String>, versionCodes: List<String>): Boolean {
-        return versionCodes[0].toInt() > buildVersionCodes[0].toInt() ||
-            versionCodes[0].toInt() == buildVersionCodes[0].toInt() && versionCodes[1].toInt() > buildVersionCodes[1].toInt() ||
-            versionCodes[0].toInt() == buildVersionCodes[0].toInt() && versionCodes[1].toInt() == buildVersionCodes[1].toInt() && versionCodes[2].toInt() > buildVersionCodes[2].toInt()
-    }
+    private data class ReleaseUpdate(
+        val versionName: String,
+        val buildId: String?,
+        val apkUrl: String?
+    )
     /**
-     * Method to compare the current and latest available app version.
-     * If a newer version is available, we show the update notification.
-     *
-     * @param versionName    Name of new version
-     * @param apkLocationUrl Url with the new apk
-     * @param versionCode    Code of new version
+     * Compare the current build with the latest available build and show an update notification
+     * when an update is available.
      */
-    private fun compareAppVersionAndShowNotification(
-        versionName: String,
-        apkLocationUrl: String?,
-        isManual: Boolean
-    ) {
+    private fun compareAppVersionAndShowNotification(releaseUpdate: ReleaseUpdate, isManual: Boolean) {
         val currentVersion = parseVersion(BuildConfig.VERSION_NAME)
-        val newVersion = parseVersion(versionName)
-        if (compareVersions(currentVersion, newVersion) >= 0) {
+        val newVersion = parseVersion(releaseUpdate.versionName)
+        val versionCompare = compareVersions(currentVersion, newVersion)
+        val hasNewRollingBuild = versionCompare == 0
+            && BuildConfig.UPDATE_ROLLING_RELEASE
+            && isNewerBuildId(BuildConfig.UPDATE_BUILD_ID, releaseUpdate.buildId)
+
+        if (versionCompare >= 0 && !hasNewRollingBuild) {
             if (isManual) {
                 ContextCompat.getMainExecutor(applicationContext).execute {
                     Toast.makeText(
-                        applicationContext, R.string.app_update_unavailable_toast,
+                        applicationContext,
+                        applicationContext.getString(
+                            R.string.app_update_unavailable_toast_channel,
+                            BuildConfig.UPDATE_CHANNEL_NAME
+                        ),
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -64,7 +64,8 @@ class NewVersionWorker(
         }
 
         // A pending intent to open the apk location url in the browser.
-        val intent = Intent(Intent.ACTION_VIEW, apkLocationUrl?.toUri())
+        val intent = Intent(Intent.ACTION_VIEW,
+            (releaseUpdate.apkUrl ?: BuildConfig.UPDATE_RELEASES_URL).toUri())
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val pendingIntent = PendingIntent.getActivity(
             applicationContext, 0, intent,
@@ -78,10 +79,15 @@ class NewVersionWorker(
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-            .setContentTitle(applicationContext.getString(R.string.app_update_notification_content_title_new))
+            .setContentTitle(applicationContext.getString(
+                R.string.app_update_notification_content_title_channel,
+                BuildConfig.UPDATE_CHANNEL_NAME
+            ))
             .setContentText(
-                applicationContext.getString(R.string.app_update_notification_content_text) +
-                    " " + versionName
+                applicationContext.getString(
+                    R.string.app_update_notification_content_text_release,
+                    formatReleaseDisplayName(releaseUpdate)
+                )
             )
         val notificationManager = NotificationManagerCompat.from(applicationContext)
         notificationManager.notify(2000, notificationBuilder.build())
@@ -104,8 +110,7 @@ class NewVersionWorker(
             }
         }
 
-        // Make a network request to get latest NewPipe data.
-        val response = DownloaderImpl.getInstance().get(NEWPIPE_API_URL)
+        val response = DownloaderImpl.getInstance().get(BuildConfig.UPDATE_API_URL)
         handleResponse(response)
     }
 
@@ -124,35 +129,116 @@ class NewVersionWorker(
             }
         }
 
-        // Parse the json from the response.
         try {
-            val githubReleases = JsonParser.`array`().from(response.responseBody())
             val includePreRelease = prefs.getBoolean(applicationContext.getString(R.string.show_prerelease_key), false)
-            var selectedRelease: JsonObject? = null
-
-            // 选择最新符合要求的版本（稳定版或包括预发布）
-            for (i in 0 until githubReleases.size) {
-                val release = githubReleases.getObject(i)
-                if (!includePreRelease && release.getBoolean("prerelease")) continue
-                if (selectedRelease == null || isNewerRelease(release, selectedRelease)) {
-                    selectedRelease = release
-                }
-            }
+            val selectedRelease = selectRelease(parseReleaseObjects(response.responseBody()),
+                includePreRelease)
 
             selectedRelease?.let { release ->
-                val versionName = release.getString("name").removePrefix("v")
-                val apkUrl = findCompatibleApkUrl(release, Build.SUPPORTED_ABIS)
-                compareAppVersionAndShowNotification(versionName, apkUrl, inputData.getBoolean(IS_MANUAL, false))
+                compareAppVersionAndShowNotification(
+                    ReleaseUpdate(
+                        versionName = extractReleaseVersionName(release),
+                        buildId = extractReleaseBuildId(release),
+                        apkUrl = findCompatibleApkUrl(release, Build.SUPPORTED_ABIS)
+                    ),
+                    inputData.getBoolean(IS_MANUAL, false)
+                )
             }
         } catch (e: JsonParserException) {
-            if (DEBUG) Log.w(TAG, "JSON解析错误", e)
+            if (DEBUG) Log.w(TAG, "Could not parse update response", e)
         }
     }
 
+    private fun selectRelease(releases: List<JsonObject>, includePreRelease: Boolean): JsonObject? {
+        if (releases.isEmpty()) {
+            return null
+        }
+        if (BuildConfig.UPDATE_ROLLING_RELEASE) {
+            return releases.first()
+        }
+
+        var selectedRelease: JsonObject? = null
+        for (release in releases) {
+            if (!includePreRelease && release.getBoolean("prerelease")) {
+                continue
+            }
+            if (selectedRelease == null || isNewerRelease(release, selectedRelease)) {
+                selectedRelease = release
+            }
+        }
+        return selectedRelease
+    }
+
+    private fun parseReleaseObjects(responseBody: String): List<JsonObject> {
+        val normalizedBody = responseBody.trim()
+        if (normalizedBody.startsWith("[")) {
+            val githubReleases = JsonParser.`array`().from(normalizedBody)
+            return List(githubReleases.size) { index -> githubReleases.getObject(index) }
+        }
+        return listOf(JsonParser.`object`().from(normalizedBody))
+    }
+
+    private fun extractReleaseVersionName(release: JsonObject): String {
+        val releaseBody = release.getString("body")
+        return readReleaseMetadataValue(releaseBody, "Version-Name")
+            ?: extractVersionString(release.getString("name"))
+            ?: extractVersionString(release.getString("tag_name"))
+            ?: BuildConfig.VERSION_NAME
+    }
+
+    private fun extractReleaseBuildId(release: JsonObject): String? {
+        return readReleaseMetadataValue(release.getString("body"), "Build-ID")
+    }
+
+    private fun readReleaseMetadataValue(body: String?, key: String): String? {
+        if (body.isNullOrBlank()) {
+            return null
+        }
+
+        return body.lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("$key:", ignoreCase = true) }
+            ?.substringAfter(':')
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
     private fun isNewerRelease(newRelease: JsonObject, currentRelease: JsonObject): Boolean {
-        val newVersion = parseVersion(newRelease.getString("name").removePrefix("v"))
-        val currentVersion = parseVersion(currentRelease.getString("name").removePrefix("v"))
+        val newVersion = parseVersion(extractReleaseVersionName(newRelease))
+        val currentVersion = parseVersion(extractReleaseVersionName(currentRelease))
         return compareVersions(newVersion, currentVersion) > 0
+    }
+
+    private fun formatReleaseDisplayName(releaseUpdate: ReleaseUpdate): String {
+        if (!releaseUpdate.buildId.isNullOrBlank()) {
+            return applicationContext.getString(
+                R.string.update_release_display_with_build,
+                releaseUpdate.versionName,
+                releaseUpdate.buildId
+            )
+        }
+        return releaseUpdate.versionName
+    }
+
+    private fun isNewerBuildId(currentBuildId: String?, candidateBuildId: String?): Boolean {
+        if (candidateBuildId.isNullOrBlank()) {
+            return false
+        }
+        if (currentBuildId.isNullOrBlank()) {
+            return true
+        }
+
+        val currentTimestamp = currentBuildId.substringBefore('-')
+        val candidateTimestamp = candidateBuildId.substringBefore('-')
+        if (currentTimestamp.length == 14
+            && candidateTimestamp.length == 14
+            && currentTimestamp.all(Char::isDigit)
+            && candidateTimestamp.all(Char::isDigit)
+        ) {
+            return candidateTimestamp > currentTimestamp
+        }
+
+        return candidateBuildId != currentBuildId
     }
 
     private fun findCompatibleApkUrl(release: JsonObject, abis: Array<String>): String? {
@@ -178,7 +264,7 @@ class NewVersionWorker(
             checkNewVersion()
             Result.success()
         } catch (e: IOException) {
-            Log.w(TAG, "Could not fetch NewPipe API: probably network problem", e)
+            Log.w(TAG, "Could not fetch update metadata: probably a network problem", e)
             Result.failure()
         } catch (e: ReCaptchaException) {
             Log.e(TAG, "ReCaptchaException should never happen here.", e)
@@ -189,11 +275,10 @@ class NewVersionWorker(
     companion object {
         private val DEBUG = MainActivity.DEBUG
         private val TAG = NewVersionWorker::class.java.simpleName
-        private const val NEWPIPE_API_URL = "https://api.github.com/repositories/490984887/releases"
         private const val IS_MANUAL = "isManual"
         /**
          * Start a new worker which checks if all conditions for performing a version check are met,
-         * fetches the API endpoint [.NEWPIPE_API_URL] containing info about the latest NewPipe
+         * fetches the configured update endpoint containing info about the latest available
          * version and displays a notification about an available update if one is available.
          * <br></br>
          * Following conditions need to be met, before data is requested from the server:
@@ -218,11 +303,11 @@ data class Version(
     val major: Int,
     val minor: Int,
     val patch: Int,
-    val betaVersion: Int? // null表示正式版，数字表示beta版本号
+    val betaVersion: Int?
 )
 
 private fun parseVersion(versionStr: String): Version {
-    val normalized = versionStr.removePrefix("v")
+    val normalized = (extractVersionString(versionStr) ?: versionStr).removePrefix("v")
     val parts = normalized.split("-beta", limit = 2)
     val mainPart = parts[0]
 
@@ -232,18 +317,24 @@ private fun parseVersion(versionStr: String): Version {
 
     val (major, minor, patch) = mainParts
 
-    // beta版本号处理
     val betaVersion = when {
-        parts.size == 1 -> null  // 没有beta部分，是正式版
-        parts[1].isEmpty() -> 0  // 是 "-beta" 结尾
-        else -> parts[1].toIntOrNull() // 是 "-beta1" 这样的格式
+        parts.size == 1 -> null
+        parts[1].isEmpty() -> 0
+        else -> parts[1].toIntOrNull()
     }
 
     return Version(major, minor, patch, betaVersion)
 }
 
+private fun extractVersionString(text: String?): String? {
+    if (text.isNullOrBlank()) {
+        return null
+    }
+
+    return Regex("""\d+\.\d+\.\d+(?:-beta\d*)?""").find(text)?.value
+}
+
 private fun compareVersions(v1: Version, v2: Version): Int {
-    // 先比较主版本号
     val mainCompare = when {
         v1.major != v2.major -> v1.major.compareTo(v2.major)
         v1.minor != v2.minor -> v1.minor.compareTo(v2.minor)
@@ -253,11 +344,10 @@ private fun compareVersions(v1: Version, v2: Version): Int {
 
     if (mainCompare != 0) return mainCompare
 
-    // 主版本号相同，比较beta版本
     return when {
-        v1.betaVersion == null && v2.betaVersion == null -> 0  // 都是正式版
-        v1.betaVersion == null -> 1  // v1是正式版，比beta版大
-        v2.betaVersion == null -> -1 // v2是正式版，比beta版大
-        else -> v1.betaVersion.compareTo(v2.betaVersion) // 比较beta版本号
+        v1.betaVersion == null && v2.betaVersion == null -> 0
+        v1.betaVersion == null -> 1
+        v2.betaVersion == null -> -1
+        else -> v1.betaVersion.compareTo(v2.betaVersion)
     }
 }

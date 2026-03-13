@@ -196,6 +196,9 @@ public class DownloadInitializer extends Thread {
                 }
 
                 Log.e(TAG, "initializer failed, retrying", e);
+                if (!DownloadMission.waitBeforeRetry(retryCount)) {
+                    return;
+                }
             }
         }
 

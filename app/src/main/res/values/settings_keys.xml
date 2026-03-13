@@ -371,6 +371,8 @@
     <string name="import_export_data_path">import_export_data_path</string>
     <string name="import_data">import_data</string>
     <string name="export_data">export_data</string>
+    <string name="import_settings_data">import_settings_data</string>
+    <string name="export_settings_data">export_settings_data</string>
 
     <string name="clear_cookie_key">clear_cookie</string>
 
@@ -428,6 +430,8 @@
     <string name="downloads_queue_limit">downloads_queue_limit</string>
 
     <string name="default_download_threads">default_download_threads</string>
+    <string name="default_download_threads_video">default_download_threads_video</string>
+    <string name="default_download_threads_audio">default_download_threads_audio</string>
 
     <!-- Preferred action on open (open from external app) -->
     <string name="preferred_open_action_key">preferred_open_action_key</string>
@@ -464,6 +468,8 @@
     <!-- Updates -->
     <string name="update_app_key">update_app_key</string>
     <string name="manual_update_key">manual_update_key</string>
+    <string name="update_channel_info_key">update_channel_info_key</string>
+    <string name="open_update_channel_key">open_update_channel_key</string>
     <string name="update_pref_screen_key">update_pref_screen_key</string>
     <string name="update_expiry_key">update_expiry_key</string>
 

@@ -5,8 +5,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import android.widget.Toast;
+
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -14,22 +14,23 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceManager;
+
 import org.schabi.newpipe.NewPipeDatabase;
 import org.schabi.newpipe.R;
 import org.schabi.newpipe.error.ErrorUtil;
-import org.schabi.newpipe.extractor.NewPipe;
-import org.schabi.newpipe.extractor.localization.ContentCountry;
-import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.streams.io.NoFileManagerSafeGuard;
 import org.schabi.newpipe.streams.io.StoredFileHelper;
 import org.schabi.newpipe.util.NavigationHelper;
-import org.schabi.newpipe.util.PicassoHelper;
 import org.schabi.newpipe.util.ZipHelper;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.schabi.newpipe.extractor.utils.Utils.isBlank;
 import static org.schabi.newpipe.util.Localization.assureCorrectAppLanguage;
@@ -37,17 +38,25 @@ import static org.schabi.newpipe.util.Localization.assureCorrectAppLanguage;
 public class BackupSettingsFragment extends BasePreferenceFragment {
     private static final String ZIP_MIME_TYPE = "application/zip";
 
+    private enum BackupType {
+        APP_DATA,
+        SETTINGS_ONLY
+    }
+
     private final SimpleDateFormat exportDateFormat
             = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US);
 
     private ContentSettingsManager manager;
-
     private String importExportDataPathKey;
+    private BackupType pendingImportType = BackupType.APP_DATA;
+    private BackupType pendingExportType = BackupType.APP_DATA;
 
     private final ActivityResultLauncher<Intent> requestImportPathLauncher =
-            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::requestImportPathResult);
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                    this::requestImportPathResult);
     private final ActivityResultLauncher<Intent> requestExportPathLauncher =
-            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::requestExportPathResult);
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                    this::requestExportPathResult);
 
     @Override
     public void onCreatePreferences(final Bundle savedInstanceState, final String rootKey) {
@@ -62,66 +71,90 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
 
         final Preference importDataPreference = requirePreference(R.string.import_data);
         importDataPreference.setOnPreferenceClickListener((Preference p) -> {
-            NoFileManagerSafeGuard.launchSafe(
-                    requestImportPathLauncher,
-                    StoredFileHelper.getPicker(requireContext(),
-                            ZIP_MIME_TYPE, getImportExportDataUri()),
-                    TAG,
-                    getContext()
-            );
-
+            pendingImportType = BackupType.APP_DATA;
+            launchImportPicker();
             return true;
         });
 
         final Preference exportDataPreference = requirePreference(R.string.export_data);
-        exportDataPreference.setOnPreferenceClickListener((final Preference p) -> {
-            NoFileManagerSafeGuard.launchSafe(
-                    requestExportPathLauncher,
-                    StoredFileHelper.getNewPicker(requireContext(),
-                            "PipePipeData-" + exportDateFormat.format(new Date()) + ".zip",
-                            ZIP_MIME_TYPE, getImportExportDataUri()),
-                    TAG,
-                    getContext()
-            );
-
+        exportDataPreference.setOnPreferenceClickListener((Preference p) -> {
+            pendingExportType = BackupType.APP_DATA;
+            launchExportPicker("PipePipeData-");
             return true;
         });
 
+        final Preference importSettingsPreference =
+                requirePreference(R.string.import_settings_data);
+        importSettingsPreference.setOnPreferenceClickListener((Preference p) -> {
+            pendingImportType = BackupType.SETTINGS_ONLY;
+            launchImportPicker();
+            return true;
+        });
+
+        final Preference exportSettingsPreference =
+                requirePreference(R.string.export_settings_data);
+        exportSettingsPreference.setOnPreferenceClickListener((Preference p) -> {
+            pendingExportType = BackupType.SETTINGS_ONLY;
+            launchExportPicker("PipePipeSettings-");
+            return true;
+        });
     }
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
+    private void launchImportPicker() {
+        NoFileManagerSafeGuard.launchSafe(
+                requestImportPathLauncher,
+                StoredFileHelper.getPicker(requireContext(), ZIP_MIME_TYPE,
+                        getImportExportDataUri()),
+                TAG,
+                getContext()
+        );
+    }
+
+    private void launchExportPicker(final String filenamePrefix) {
+        NoFileManagerSafeGuard.launchSafe(
+                requestExportPathLauncher,
+                StoredFileHelper.getNewPicker(requireContext(),
+                        filenamePrefix + exportDateFormat.format(new Date()) + ".zip",
+                        ZIP_MIME_TYPE, getImportExportDataUri()),
+                TAG,
+                getContext()
+        );
     }
 
     private void requestExportPathResult(final ActivityResult result) {
         assureCorrectAppLanguage(getContext());
         if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-            // will be saved only on success
             final Uri lastExportDataUri = result.getData().getData();
+            final StoredFileHelper file = new StoredFileHelper(getContext(),
+                    result.getData().getData(), ZIP_MIME_TYPE);
 
-            final StoredFileHelper file
-                    = new StoredFileHelper(getContext(), result.getData().getData(), ZIP_MIME_TYPE);
-
-            exportDatabase(file, lastExportDataUri);
+            if (pendingExportType == BackupType.SETTINGS_ONLY) {
+                exportSettings(file, lastExportDataUri);
+            } else {
+                exportDatabase(file, lastExportDataUri);
+            }
         }
     }
 
     private void requestImportPathResult(final ActivityResult result) {
         assureCorrectAppLanguage(getContext());
         if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-            // will be saved only on success
             final Uri lastImportDataUri = result.getData().getData();
-
-            final StoredFileHelper file
-                    = new StoredFileHelper(getContext(), result.getData().getData(), ZIP_MIME_TYPE);
+            final StoredFileHelper file = new StoredFileHelper(getContext(),
+                    result.getData().getData(), ZIP_MIME_TYPE);
 
             new AlertDialog.Builder(requireActivity())
-                    .setMessage(R.string.override_current_data)
-                    .setPositiveButton(R.string.ok, (d, id) ->
-                            importDatabase(file, lastImportDataUri))
-                    .setNegativeButton(R.string.cancel, (d, id) ->
-                            d.cancel())
+                    .setMessage(pendingImportType == BackupType.SETTINGS_ONLY
+                            ? R.string.override_current_settings
+                            : R.string.override_current_data)
+                    .setPositiveButton(R.string.ok, (d, id) -> {
+                        if (pendingImportType == BackupType.SETTINGS_ONLY) {
+                            importSettings(file, lastImportDataUri);
+                        } else {
+                            importDatabase(file, lastImportDataUri);
+                        }
+                    })
+                    .setNegativeButton(R.string.cancel, (d, id) -> d.cancel())
                     .create()
                     .show();
         }
@@ -129,25 +162,40 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
 
     private void exportDatabase(final StoredFileHelper file, final Uri exportDataUri) {
         try {
-            //checkpoint before export
             NewPipeDatabase.checkpoint();
 
             final SharedPreferences preferences = PreferenceManager
                     .getDefaultSharedPreferences(requireContext());
             manager.exportDatabase(preferences, file);
 
-            saveLastImportExportDataUri(exportDataUri); // save export path only on success
+            saveLastImportExportDataUri(exportDataUri);
             Toast.makeText(getContext(), R.string.export_complete_toast, Toast.LENGTH_SHORT).show();
         } catch (final Exception e) {
             ErrorUtil.showUiErrorSnackbar(this, "Exporting database", e);
+        } finally {
+            manager.deleteSettingsFile();
+        }
+    }
+
+    private void exportSettings(final StoredFileHelper file, final Uri exportDataUri) {
+        try {
+            final SharedPreferences preferences = PreferenceManager
+                    .getDefaultSharedPreferences(requireContext());
+            manager.exportSettings(preferences, file);
+
+            saveLastImportExportDataUri(exportDataUri);
+            Toast.makeText(getContext(), R.string.export_settings_complete_toast,
+                    Toast.LENGTH_SHORT).show();
+        } catch (final Exception e) {
+            ErrorUtil.showUiErrorSnackbar(this, "Exporting settings", e);
+        } finally {
+            manager.deleteSettingsFile();
         }
     }
 
     private void importDatabase(final StoredFileHelper file, final Uri importDataUri) {
-        // check if file is supported
         if (!ZipHelper.isValidZipFile(file)) {
-            Toast.makeText(getContext(), R.string.no_valid_zip_file, Toast.LENGTH_SHORT)
-                    .show();
+            Toast.makeText(getContext(), R.string.no_valid_zip_file, Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -157,11 +205,10 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
             }
 
             if (!manager.extractDb(file)) {
-                Toast.makeText(getContext(), R.string.could_not_import_all_files, Toast.LENGTH_LONG)
-                        .show();
+                Toast.makeText(getContext(), R.string.could_not_import_all_files,
+                        Toast.LENGTH_LONG).show();
             }
 
-            // if settings file exist, ask if it should be imported.
             if (manager.extractSettings(file)) {
                 final AlertDialog.Builder alert = new AlertDialog.Builder(requireContext());
                 alert.setTitle(R.string.import_settings);
@@ -172,17 +219,7 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
                 });
                 alert.setPositiveButton(R.string.ok, (dialog, which) -> {
                     dialog.dismiss();
-                    SharedPreferences sharedPreferences = PreferenceManager
-                            .getDefaultSharedPreferences(requireContext());
-                    manager.loadSharedPreferences(sharedPreferences);
-                    final Set<String> enabledTabs = sharedPreferences.getStringSet(
-                            requireContext().getString(R.string.show_channel_tabs_key), new HashSet<>());
-                    Set<String> newSet = new HashSet<>(enabledTabs);
-                    if (newSet.contains("show_channel_tabs_livestreams")) {
-                        newSet.remove("show_channel_tabs_livestreams");
-                        newSet.add("show_channel_tabs_live");
-                        sharedPreferences.edit().putStringSet(requireContext().getString(R.string.show_channel_tabs_key), newSet).apply();
-                    }
+                    importExtractedSettings();
                     finishImport(importDataUri);
                 });
                 alert.show();
@@ -190,19 +227,63 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
                 finishImport(importDataUri);
             }
         } catch (final Exception e) {
+            manager.deleteSettingsFile();
             ErrorUtil.showUiErrorSnackbar(this, "Importing database", e);
         }
     }
 
-    /**
-     * Save import path and restart system.
-     *
-     * @param importDataUri The import path to save
-     */
+    private void importSettings(final StoredFileHelper file, final Uri importDataUri) {
+        if (!ZipHelper.isValidZipFile(file)) {
+            Toast.makeText(getContext(), R.string.no_valid_zip_file, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            if (!manager.extractSettings(file)) {
+                Toast.makeText(getContext(), R.string.no_settings_found_in_backup,
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            if (!importExtractedSettings()) {
+                return;
+            }
+
+            finishImport(importDataUri);
+        } catch (final Exception e) {
+            ErrorUtil.showUiErrorSnackbar(this, "Importing settings", e);
+        } finally {
+            manager.deleteSettingsFile();
+        }
+    }
+
+    private boolean importExtractedSettings() {
+        final SharedPreferences sharedPreferences = PreferenceManager
+                .getDefaultSharedPreferences(requireContext());
+        if (!manager.loadSharedPreferences(sharedPreferences)) {
+            Toast.makeText(getContext(), R.string.could_not_import_settings,
+                    Toast.LENGTH_LONG).show();
+            return false;
+        }
+
+        final Set<String> enabledTabs = sharedPreferences.getStringSet(
+                requireContext().getString(R.string.show_channel_tabs_key), new HashSet<>());
+        final Set<String> newSet = new HashSet<>(enabledTabs);
+        if (newSet.contains("show_channel_tabs_livestreams")) {
+            newSet.remove("show_channel_tabs_livestreams");
+            newSet.add("show_channel_tabs_live");
+            sharedPreferences.edit()
+                    .putStringSet(requireContext().getString(R.string.show_channel_tabs_key),
+                            newSet)
+                    .apply();
+        }
+
+        return true;
+    }
+
     private void finishImport(final Uri importDataUri) {
-        // save import path only on success
         saveLastImportExportDataUri(importDataUri);
-        // restart app to properly load db
+        manager.deleteSettingsFile();
         NavigationHelper.restartApp(requireActivity());
     }
 
@@ -212,8 +293,8 @@ public class BackupSettingsFragment extends BasePreferenceFragment {
     }
 
     private void saveLastImportExportDataUri(final Uri importExportDataUri) {
-        final SharedPreferences.Editor editor = defaultPreferences.edit()
-                .putString(importExportDataPathKey, importExportDataUri.toString());
-        editor.apply();
+        defaultPreferences.edit()
+                .putString(importExportDataPathKey, importExportDataUri.toString())
+                .apply();
     }
 }

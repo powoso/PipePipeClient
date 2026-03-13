@@ -54,6 +54,7 @@ import org.schabi.newpipe.util.Localization;
 
 import us.shandian.giga.postprocessing.Postprocessing;
 import us.shandian.giga.service.DownloadManager.NetworkState;
+import us.shandian.giga.util.DownloadErrorHelper;
 
 import static android.app.PendingIntent.FLAG_UPDATE_CURRENT;
 import static org.schabi.newpipe.BuildConfig.APPLICATION_ID;
@@ -499,9 +500,10 @@ public class DownloadManagerService extends Service {
         }
 
         downloadFailedNotification.setContentTitle(getString(R.string.download_failed));
-        downloadFailedNotification.setContentText(mission.storage.getName());
+        downloadFailedNotification.setContentText(DownloadErrorHelper.getReasonText(this, mission));
         downloadFailedNotification.setStyle(new NotificationCompat.BigTextStyle()
-                .bigText(mission.storage.getName()));
+                .setBigContentTitle(mission.storage.getName())
+                .bigText(DownloadErrorHelper.getFullMessage(this, mission)));
 
         mNotificationManager.notify(id, downloadFailedNotification.build());
     }

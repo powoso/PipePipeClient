@@ -57,6 +57,7 @@ public class DownloadRunnable extends Thread {
         while (mMission.running && mMission.errCode == DownloadMission.ERROR_NOTHING) {
             if (!retry) {
                 block = mMission.acquireBlock();
+                retryCount = 0;
             }
 
             if (block == null) {
@@ -125,6 +126,8 @@ public class DownloadRunnable extends Thread {
                     }
                 }
 
+                retryCount = 0;
+
                 if (DEBUG && mMission.running) {
                     Log.d(TAG, mId + ":position " + block.position + " stopped " + start + "/" + end);
                 }
@@ -148,6 +151,9 @@ public class DownloadRunnable extends Thread {
                 }
 
                 retry = true;
+                if (!DownloadMission.waitBeforeRetry(retryCount)) {
+                    break;
+                }
             } finally {
                 if (!retry) releaseBlock(block, end - start);
             }

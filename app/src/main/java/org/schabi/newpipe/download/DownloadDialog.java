@@ -324,23 +324,22 @@ public class DownloadDialog extends DialogFragment
         dialogBinding.videoAudioGroup.setOnCheckedChangeListener(this);
 
         initToolbar(dialogBinding.toolbarLayout.toolbar);
-        setupDownloadOptions();
-
         prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-
-        final int threads = prefs.getInt(getString(R.string.default_download_threads), 3);
-        dialogBinding.threadsCount.setText(String.valueOf(threads));
-        dialogBinding.threads.setProgress(threads - 1);
         dialogBinding.threads.setOnSeekBarChangeListener(new SimpleOnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(@NonNull final SeekBar seekbar, final int progress,
                                           final boolean fromUser) {
                 final int newProgress = progress + 1;
-                prefs.edit().putInt(getString(R.string.default_download_threads), newProgress)
-                        .apply();
-                dialogBinding.threadsCount.setText(String.valueOf(newProgress));
+                updateThreadViews(dialogBinding.videoAudioGroup.getCheckedRadioButtonId(),
+                        newProgress);
+                if (fromUser) {
+                    persistThreadsPreference(dialogBinding.videoAudioGroup.getCheckedRadioButtonId(),
+                            newProgress);
+                }
             }
         });
+        setupDownloadOptions();
+        syncThreadControlsWithSelection();
 
         fetchStreamsSize();
     }
@@ -551,7 +550,6 @@ public class DownloadDialog extends DialogFragment
             Log.d(TAG, "onCheckedChanged() called with: "
                     + "group = [" + group + "], checkedId = [" + checkedId + "]");
         }
-        boolean flag = true;
 
         switch (checkedId) {
             case R.id.audio_button:
@@ -562,11 +560,10 @@ public class DownloadDialog extends DialogFragment
                 break;
             case R.id.subtitle_button:
                 setupSubtitleSpinner();
-                flag = false;
                 break;
         }
 
-        dialogBinding.threads.setEnabled(flag);
+        syncThreadControlsWithSelection();
     }
 
     @Override
@@ -644,7 +641,6 @@ public class DownloadDialog extends DialogFragment
         dialogBinding.subtitleButton.setVisibility(isSubtitleStreamsAvailable
                 ? View.VISIBLE : View.GONE);
 
-        prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
         final String defaultMedia = prefs.getString(getString(R.string.last_used_download_type),
                     getString(R.string.last_download_type_video_key));
 
@@ -674,6 +670,77 @@ public class DownloadDialog extends DialogFragment
                     Toast.LENGTH_SHORT).show();
             dismiss();
         }
+    }
+
+    private void syncThreadControlsWithSelection() {
+        final int checkedId = dialogBinding.videoAudioGroup.getCheckedRadioButtonId();
+        final int threads = getPersistedThreads(checkedId);
+        dialogBinding.threads.setEnabled(checkedId != R.id.subtitle_button);
+        dialogBinding.threads.setProgress(threads - 1);
+        updateThreadViews(checkedId, threads);
+    }
+
+    private void updateThreadViews(@IdRes final int checkedId, final int threads) {
+        dialogBinding.threadsCount.setText(String.valueOf(threads));
+        dialogBinding.threadsHint.setText(getString(getThreadsHintRes(checkedId, threads)));
+    }
+
+    private void persistThreadsPreference(@IdRes final int checkedId, final int threads) {
+        if (checkedId == R.id.subtitle_button) {
+            return;
+        }
+
+        prefs.edit()
+                .putInt(getThreadPreferenceKey(checkedId), threads)
+                .putInt(getString(R.string.default_download_threads), threads)
+                .apply();
+    }
+
+    private int getPersistedThreads(@IdRes final int checkedId) {
+        if (checkedId == R.id.subtitle_button) {
+            return 1;
+        }
+
+        final int fallback = getDefaultThreads(checkedId);
+        return Math.min(dialogBinding.threads.getMax() + 1, Math.max(1,
+                prefs.getInt(getThreadPreferenceKey(checkedId),
+                        prefs.getInt(getString(R.string.default_download_threads), fallback))));
+    }
+
+    private int getDefaultThreads(@IdRes final int checkedId) {
+        if (checkedId == R.id.audio_button) {
+            return 2;
+        }
+        if (checkedId == R.id.subtitle_button) {
+            return 1;
+        }
+        return 3;
+    }
+
+    private String getThreadPreferenceKey(@IdRes final int checkedId) {
+        if (checkedId == R.id.audio_button) {
+            return getString(R.string.default_download_threads_audio);
+        }
+        return getString(R.string.default_download_threads_video);
+    }
+
+    @StringRes
+    private int getThreadsHintRes(@IdRes final int checkedId, final int threads) {
+        if (checkedId == R.id.subtitle_button) {
+            return R.string.download_threads_hint_subtitles;
+        }
+        if (threads <= 1) {
+            return checkedId == R.id.audio_button
+                    ? R.string.download_threads_hint_audio_safe
+                    : R.string.download_threads_hint_video_safe;
+        }
+        if (checkedId == R.id.audio_button && threads <= 3) {
+            return R.string.download_threads_hint_audio_balanced;
+        }
+        if (checkedId == R.id.video_button && threads <= 3) {
+            return R.string.download_threads_hint_video_balanced;
+        }
+        return R.string.download_threads_hint_high;
     }
 
     private void setRadioButtonsState(final boolean enabled) {

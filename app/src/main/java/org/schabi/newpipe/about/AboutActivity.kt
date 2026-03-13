@@ -18,6 +18,7 @@ import org.schabi.newpipe.databinding.FragmentAboutBinding
 import org.schabi.newpipe.util.Localization
 import org.schabi.newpipe.util.ThemeHelper
 import org.schabi.newpipe.util.external_communication.ShareUtils
+import java.util.Locale
 
 class AboutActivity : AppCompatActivity() {
 
@@ -73,11 +74,44 @@ class AboutActivity : AppCompatActivity() {
             savedInstanceState: Bundle?
         ): View {
             FragmentAboutBinding.inflate(inflater, container, false).apply {
-                aboutAppVersion.text = BuildConfig.VERSION_NAME
+                aboutAppVersion.text = getString(
+                    R.string.about_app_version_format,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE
+                )
+                val buildInfo = buildInfoText()
+                aboutBuildDetails.text = buildInfo
+                aboutCopyBuildInfo.setOnClickListener {
+                    ShareUtils.copyToClipboard(requireContext(), buildInfo)
+                }
                 aboutGithubLink.openLink(R.string.github_url)
                 aboutDonationLink.openLink(R.string.donation_url)
                 return root
             }
+        }
+
+        private fun buildInfoText(): String {
+            return listOf(
+                getString(R.string.about_build_channel, BuildConfig.BUILD_CHANNEL),
+                getString(
+                    R.string.about_build_variant,
+                    BuildConfig.BUILD_VARIANT_LABEL.replaceFirstChar {
+                        if (it.isLowerCase()) {
+                            it.titlecase(Locale.ROOT)
+                        } else {
+                            it.toString()
+                        }
+                    }
+                ),
+                getString(R.string.about_build_package, BuildConfig.APPLICATION_ID),
+                getString(
+                    R.string.about_build_updates,
+                    BuildConfig.UPDATE_CHANNEL_NAME,
+                    BuildConfig.UPDATE_SOURCE_LABEL
+                ),
+                getString(R.string.about_build_app_commit, BuildConfig.APP_GIT_COMMIT),
+                getString(R.string.about_build_extractor_commit, BuildConfig.EXTRACTOR_GIT_COMMIT)
+            ).joinToString(separator = "\n")
         }
     }
 

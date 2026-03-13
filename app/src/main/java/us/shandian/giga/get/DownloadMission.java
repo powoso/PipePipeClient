@@ -28,6 +28,10 @@ public class DownloadMission extends Mission {
 
     static final int BUFFER_SIZE = 64 * 1024;
     static final int BLOCK_SIZE = 512 * 1024;
+    static final int NETWORK_CONNECT_TIMEOUT_MILLIS = 30_000;
+    static final int NETWORK_READ_TIMEOUT_MILLIS = 30_000;
+    private static final long RETRY_DELAY_STEP_MILLIS = 1_000L;
+    private static final long RETRY_DELAY_MAX_MILLIS = 8_000L;
 
     private static final String TAG = "DownloadMission";
 
@@ -226,12 +230,13 @@ public class DownloadMission extends Mission {
         if (cookie != null) conn.setRequestProperty("Cookie", cookie);
 
         conn.setRequestProperty("Accept", "*/*");
-        conn.setRequestProperty("Accept-Encoding", "*");
+        conn.setRequestProperty("Accept-Encoding", "identity");
 
         if (headRequest) conn.setRequestMethod("HEAD");
 
-        // BUG workaround: switching between networks can freeze the download forever
-        conn.setConnectTimeout(30000);
+        // Work around network transitions and stalled sockets freezing a download forever.
+        conn.setConnectTimeout(NETWORK_CONNECT_TIMEOUT_MILLIS);
+        conn.setReadTimeout(NETWORK_READ_TIMEOUT_MILLIS);
 
         if (rangeStart >= 0) {
             String req = "bytes=" + rangeStart + "-";
@@ -273,6 +278,30 @@ public class DownloadMission extends Mission {
                 }
         }
 
+    }
+
+    static long getRetryDelayMillis(final int retryCount) {
+        if (retryCount <= 0) {
+            return 0L;
+        }
+
+        return Math.min(RETRY_DELAY_MAX_MILLIS, retryCount * RETRY_DELAY_STEP_MILLIS);
+    }
+
+    static boolean waitBeforeRetry(final int retryCount) {
+        final long delayMillis = getRetryDelayMillis(retryCount);
+        if (delayMillis <= 0) {
+            return true;
+        }
+
+        try {
+            Thread.sleep(delayMillis);
+        } catch (final InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+
+        return true;
     }
 
 

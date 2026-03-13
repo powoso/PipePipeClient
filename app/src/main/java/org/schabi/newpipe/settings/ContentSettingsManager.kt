@@ -28,22 +28,36 @@ class ContentSettingsManager(private val fileLocator: NewPipeFileLocator) {
         ZipOutputStream(BufferedOutputStream(SharpOutputStream(file.stream)))
             .use { outZip ->
                 ZipHelper.addFileToZip(outZip, fileLocator.db.path, "newpipe.db")
+                writeSettingsSnapshot(preferences)
+                ZipHelper.addFileToZip(outZip, fileLocator.settings.path, "newpipe.settings")
+            }
+    }
 
-                try {
-                    ObjectOutputStream(FileOutputStream(fileLocator.settings)).use { output ->
-                        output.writeObject(preferences.all)
-                        output.flush()
-                    }
-                } catch (e: IOException) {
-                    Log.e(TAG, "Unable to exportDatabase", e)
-                }
-
+    @Throws(Exception::class)
+    fun exportSettings(preferences: SharedPreferences, file: StoredFileHelper) {
+        file.create()
+        ZipOutputStream(BufferedOutputStream(SharpOutputStream(file.stream)))
+            .use { outZip ->
+                writeSettingsSnapshot(preferences)
                 ZipHelper.addFileToZip(outZip, fileLocator.settings.path, "newpipe.settings")
             }
     }
 
     fun deleteSettingsFile() {
         fileLocator.settings.delete()
+    }
+
+    @Throws(IOException::class)
+    private fun writeSettingsSnapshot(preferences: SharedPreferences) {
+        try {
+            ObjectOutputStream(FileOutputStream(fileLocator.settings)).use { output ->
+                output.writeObject(preferences.all)
+                output.flush()
+            }
+        } catch (e: IOException) {
+            Log.e(TAG, "Unable to writeSettingsSnapshot", e)
+            throw e
+        }
     }
 
     /**
@@ -70,7 +84,7 @@ class ContentSettingsManager(private val fileLocator: NewPipeFileLocator) {
         return ZipHelper.extractFileFromZip(file, fileLocator.settings.path, "newpipe.settings")
     }
 
-    fun loadSharedPreferences(preferences: SharedPreferences) {
+    fun loadSharedPreferences(preferences: SharedPreferences): Boolean {
         try {
             val preferenceEditor = preferences.edit()
 
@@ -102,12 +116,14 @@ class ContentSettingsManager(private val fileLocator: NewPipeFileLocator) {
                         }
                     }
                 }
-                preferenceEditor.commit()
+                return preferenceEditor.commit()
             }
         } catch (e: IOException) {
             Log.e(TAG, "Unable to loadSharedPreferences", e)
         } catch (e: ClassNotFoundException) {
             Log.e(TAG, "Unable to loadSharedPreferences", e)
         }
+
+        return false
     }
 }

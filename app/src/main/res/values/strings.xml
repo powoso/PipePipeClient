@@ -211,10 +211,14 @@
 <string name="switch_to_main">Switch to Main</string>
 <string name="import_data_title">Import database</string>
 <string name="export_data_title">Export database</string>
+<string name="import_settings_data_title">Import settings only</string>
+<string name="export_settings_data_title">Export settings only</string>
 <string name="clear_cookie_title">Clear reCAPTCHA cookies</string>
 <string name="recaptcha_cookies_cleared">reCAPTCHA cookies have been cleared</string>
 <string name="import_data_summary">Overrides your current history, subscriptions, playlists and (optionally) settings</string>
 <string name="export_data_summary">Export history, subscriptions, playlists and settings</string>
+<string name="import_settings_data_summary">Overrides only your current app settings and restarts PipePipe</string>
+<string name="export_settings_data_summary">Export just your current app settings</string>
 <string name="clear_cookie_summary_new">Clear cookies that PipePipe stores when you solve a reCAPTCHA</string>
 <string name="clear_views_history_title">Clear watch history</string>
 <string name="clear_views_history_summary">Deletes the history of played streams and the playback positions</string>
@@ -366,6 +370,14 @@
 <string name="copyright">© %1$s by %2$s under %3$s</string>
 <string name="tab_about">About</string>
 <string name="tab_licenses">Licenses</string>
+<string name="about_app_version_format">Version %1$s (%2$d)</string>
+<string name="about_build_channel">Channel: %1$s</string>
+<string name="about_build_variant">Variant: %1$s</string>
+<string name="about_build_package">Package: %1$s</string>
+<string name="about_build_updates">Updates: %1$s via %2$s</string>
+<string name="about_build_app_commit">App commit: %1$s</string>
+<string name="about_build_extractor_commit">Extractor commit: %1$s</string>
+<string name="copy_build_info">Copy build info</string>
 <string name="app_description_new">A FLOSS Android app to let you browse YouTube, NicoNico and BiliBili freely </string>
 <string name="contribution_title">Contribute</string>
 <string name="contribution_encouragement">Whether you have ideas of; translation, design changes, code cleaning, or real heavy code changes—help is always welcome. The more is done the better it gets!</string>
@@ -398,11 +410,15 @@
 <string name="no_playlist_bookmarked_yet">No playlist bookmarks yet</string>
 <string name="select_a_kiosk">Select a kiosk</string>
 <string name="export_complete_toast">Exported</string>
+<string name="export_settings_complete_toast">Settings exported</string>
 <string name="import_complete_toast">Imported</string>
 <string name="no_valid_zip_file">No valid ZIP file</string>
 <string name="could_not_import_all_files">Warning: Could not import all files.</string>
 <string name="override_current_data">This will override your current setup.</string>
+<string name="override_current_settings">This will override your current settings.</string>
 <string name="import_settings">Do you want to also import settings?</string>
+<string name="no_settings_found_in_backup">No settings were found in this backup.</string>
+<string name="could_not_import_settings">Could not import settings.</string>
 <string name="error_unable_to_load_comments">Could not load comments</string>
 <string name="localization_changes_requires_app_restart">The language will change once the app is restarted</string>
 <!-- Kiosk Names -->
@@ -546,8 +562,15 @@
 <!-- Updates Settings -->
 <string name="updates_setting_title">Updates</string>
 <string name="updates_setting_description">Show a notification to prompt app update when a new version is available</string>
+<string name="updates_setting_description_channel">Show a notification when a new %1$s build is available</string>
 <string name="manual_update_title">Check for updates</string>
 <string name="manual_update_description">Manually check for new versions</string>
+<string name="manual_update_description_channel">Manually check for new %1$s builds</string>
+<string name="update_channel_title">Current update channel</string>
+<string name="update_channel_summary">%1$s from %2$s</string>
+<string name="open_update_channel_title">Open update channel</string>
+<string name="open_update_channel_summary">Open the release page for %1$s</string>
+<string name="open_update_channel_summary_default">Open the release page for this build channel</string>
 <!-- Minimize to exit action -->
 <string name="minimize_on_exit_title">Minimize on app switch</string>
 <string name="minimize_on_exit_summary">Action when switching to other app from main video player — %s</string>
@@ -571,8 +594,12 @@
 <string name="dont_show">Don\'t show</string>
 <!-- App update notification -->
 <string name="app_update_unavailable_toast">You are running the latest version of PipePipe</string>
+<string name="app_update_unavailable_toast_channel">You are already on the latest %1$s build</string>
 <string name="app_update_notification_content_title_new">PipePipe update is available!</string>
+<string name="app_update_notification_content_title_channel">%1$s update is available!</string>
 <string name="app_update_notification_content_text">Tap to download</string>
+<string name="app_update_notification_content_text_release">Tap to download %1$s</string>
+<string name="update_release_display_with_build">%1$s (%2$s)</string>
 <string name="missions_header_finished">Finished</string>
 <string name="missions_header_pending">Pending</string>
 <string name="paused">paused</string>
@@ -582,6 +609,7 @@
 <string name="enqueue">Enqueue</string>
 <string name="permission_denied">Action denied by the system</string>
 <string name="checking_updates_toast">Checking for updates…</string>
+<string name="checking_updates_toast_channel">Checking %1$s…</string>
 <!-- download notifications -->
 <string name="download_failed">Download failed</string>
 <plurals name="download_finished_notification">
@@ -604,7 +632,9 @@
 <string name="error_unknown_host">Could not find the server</string>
 <string name="error_connect_host">Cannot connect to the server</string>
 <string name="error_http_no_content">The server does not send data</string>
-<string name="error_http_unsupported_range">The server does not accept multi-threaded downloads, retry with @string/msg_threads = 1</string>
+<string name="error_http_unsupported_range">The server does not accept multi-threaded downloads</string>
+<string name="error_http_auth_download">The download URL expired or requires authorization</string>
+<string name="error_http_forbidden_download">The server refused the download request</string>
 <string name="error_http_not_found">Not found</string>
 <string name="error_postprocessing_failed">Post-processing failed</string>
 <string name="error_postprocessing_stopped_new">PipePipe was closed while working on the file</string>
@@ -612,6 +642,19 @@
 <string name="error_progress_lost">Progress lost, because the file was deleted</string>
 <string name="error_timeout">Connection timeout</string>
 <string name="error_download_resource_gone">Cannot recover this download</string>
+<string name="download_error_hint_single_thread">Try again with Threads set to 1 for this download.</string>
+<string name="download_error_hint_refresh_from_video">Start the download again from the video page to fetch a fresh media URL.</string>
+<string name="download_error_hint_retry_or_lower_threads">Check your connection and retry. If it keeps happening, lower Threads to 1.</string>
+<string name="download_error_hint_retry_connection">Check your connection and retry the download.</string>
+<string name="download_error_hint_storage">Free up storage space or choose a different download folder, then retry.</string>
+<string name="download_error_hint_pick_folder">Pick the download folder again, then retry.</string>
+<string name="download_error_hint_retry_later">Try the download again in a moment.</string>
+<string name="download_threads_hint_video_safe">1 thread is the most compatible for video, but slower.</string>
+<string name="download_threads_hint_video_balanced">2 or 3 threads are a good default for video downloads.</string>
+<string name="download_threads_hint_audio_safe">1 thread is the most compatible for audio, but slower.</string>
+<string name="download_threads_hint_audio_balanced">2 or 3 threads are usually enough for audio downloads.</string>
+<string name="download_threads_hint_high">Higher values rarely help and may fail more often.</string>
+<string name="download_threads_hint_subtitles">Subtitles always download with 1 thread.</string>
 <string name="clear_download_history">Clear download history</string>
 <string name="confirm_prompt">Do you want to clear your download history or delete all downloaded files?</string>
 <string name="delete_downloaded_files">Delete downloaded files</string>

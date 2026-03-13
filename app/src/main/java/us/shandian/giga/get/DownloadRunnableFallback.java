@@ -53,6 +53,7 @@ public class DownloadRunnableFallback extends Thread {
     public void run() {
         boolean done;
         long start = mMission.fallbackResumeOffset;
+        final long attemptStart = start;
 
         if (DEBUG && !mMission.unknownLength && start > 0) {
             Log.i(TAG, "Resuming a single-thread download at " + start);
@@ -103,6 +104,7 @@ public class DownloadRunnableFallback extends Thread {
             }
 
             dispose();
+            mRetryCount = 0;
 
             // if thread goes interrupted check if the last part is written. This avoid re-download the whole file
             done = len == -1;
@@ -121,6 +123,10 @@ public class DownloadRunnableFallback extends Thread {
                 return;
             }
 
+            if (start > attemptStart) {
+                mRetryCount = 0;
+            }
+
             if (mRetryCount++ >= mMission.maxRetry) {
                 mMission.notifyError(e);
                 return;
@@ -130,6 +136,9 @@ public class DownloadRunnableFallback extends Thread {
                 Log.e(TAG, "got exception, retrying...", e);
             }
 
+            if (!DownloadMission.waitBeforeRetry(mRetryCount)) {
+                return;
+            }
             run();// try again
             return;
         }
