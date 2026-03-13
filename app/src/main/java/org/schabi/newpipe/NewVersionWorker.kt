@@ -35,6 +35,7 @@ class NewVersionWorker(
         val buildId: String?,
         val apkUrl: String?
     )
+
     /**
      * Compare the current build with the latest available build and show an update notification
      * when an update is available.
@@ -46,8 +47,10 @@ class NewVersionWorker(
         val hasNewRollingBuild = versionCompare == 0
             && BuildConfig.UPDATE_ROLLING_RELEASE
             && isNewerBuildId(BuildConfig.UPDATE_BUILD_ID, releaseUpdate.buildId)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
 
         if (versionCompare >= 0 && !hasNewRollingBuild) {
+            clearStoredLatestRelease(prefs)
             if (isManual) {
                 ContextCompat.getMainExecutor(applicationContext).execute {
                     Toast.makeText(
@@ -63,21 +66,18 @@ class NewVersionWorker(
             return
         }
 
-        // A pending intent to open the apk location url in the browser.
-        val intent = Intent(Intent.ACTION_VIEW,
-            (releaseUpdate.apkUrl ?: BuildConfig.UPDATE_RELEASES_URL).toUri())
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val pendingIntent = PendingIntent.getActivity(
-            applicationContext, 0, intent,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            else PendingIntent.FLAG_UPDATE_CURRENT
+        storeLatestRelease(prefs, releaseUpdate)
+
+        val downloadPendingIntent = createOpenUrlPendingIntent(
+            releaseUpdate.apkUrl ?: BuildConfig.UPDATE_RELEASES_URL,
+            2000
         )
+        val channelPendingIntent = createOpenUrlPendingIntent(BuildConfig.UPDATE_RELEASES_URL, 2001)
         val channelId = applicationContext.getString(R.string.app_update_notification_channel_id)
         val notificationBuilder = NotificationCompat.Builder(applicationContext, channelId)
             .setSmallIcon(R.drawable.ic_newpipe_update)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(downloadPendingIntent)
             .setAutoCancel(true)
             .setContentTitle(applicationContext.getString(
                 R.string.app_update_notification_content_title_channel,
@@ -88,6 +88,16 @@ class NewVersionWorker(
                     R.string.app_update_notification_content_text_release,
                     formatReleaseDisplayName(releaseUpdate)
                 )
+            )
+            .addAction(
+                R.drawable.ic_newpipe_update,
+                applicationContext.getString(R.string.app_update_notification_action_download),
+                downloadPendingIntent
+            )
+            .addAction(
+                R.drawable.ic_newpipe_update,
+                applicationContext.getString(R.string.app_update_notification_action_view_channel),
+                channelPendingIntent
             )
         val notificationManager = NotificationManagerCompat.from(applicationContext)
         notificationManager.notify(2000, notificationBuilder.build())
@@ -133,6 +143,10 @@ class NewVersionWorker(
             val includePreRelease = prefs.getBoolean(applicationContext.getString(R.string.show_prerelease_key), false)
             val selectedRelease = selectRelease(parseReleaseObjects(response.responseBody()),
                 includePreRelease)
+
+            if (selectedRelease == null) {
+                clearStoredLatestRelease(prefs)
+            }
 
             selectedRelease?.let { release ->
                 compareAppVersionAndShowNotification(
@@ -255,6 +269,49 @@ class NewVersionWorker(
             }
         }
         return universalUrl
+    }
+
+    private fun createOpenUrlPendingIntent(url: String, requestCode: Int): PendingIntent {
+        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return PendingIntent.getActivity(
+            applicationContext,
+            requestCode,
+            intent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
+        )
+    }
+
+    private fun storeLatestRelease(
+        prefs: android.content.SharedPreferences,
+        releaseUpdate: ReleaseUpdate
+    ) {
+        prefs.edit {
+            putString(
+                applicationContext.getString(R.string.latest_update_version_key),
+                releaseUpdate.versionName
+            )
+            putString(
+                applicationContext.getString(R.string.latest_update_build_id_key),
+                releaseUpdate.buildId
+            )
+            putString(
+                applicationContext.getString(R.string.latest_update_apk_url_key),
+                releaseUpdate.apkUrl
+            )
+        }
+    }
+
+    private fun clearStoredLatestRelease(prefs: android.content.SharedPreferences) {
+        prefs.edit {
+            remove(applicationContext.getString(R.string.latest_update_version_key))
+            remove(applicationContext.getString(R.string.latest_update_build_id_key))
+            remove(applicationContext.getString(R.string.latest_update_apk_url_key))
+        }
     }
 
 

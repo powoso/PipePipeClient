@@ -571,6 +571,12 @@
 <string name="open_update_channel_title">Open update channel</string>
 <string name="open_update_channel_summary">Open the release page for %1$s</string>
 <string name="open_update_channel_summary_default">Open the release page for this build channel</string>
+<string name="latest_update_title">Latest build found</string>
+<string name="latest_update_summary_none">No newer build has been found yet.</string>
+<string name="latest_update_summary">Latest available: %1$s from %2$s</string>
+<string name="download_latest_update_title">Download latest APK</string>
+<string name="download_latest_update_summary_none">Check for updates first to enable direct APK download.</string>
+<string name="download_latest_update_summary">Download %1$s directly from %2$s</string>
 <!-- Minimize to exit action -->
 <string name="minimize_on_exit_title">Minimize on app switch</string>
 <string name="minimize_on_exit_summary">Action when switching to other app from main video player — %s</string>
@@ -599,6 +605,8 @@
 <string name="app_update_notification_content_title_channel">%1$s update is available!</string>
 <string name="app_update_notification_content_text">Tap to download</string>
 <string name="app_update_notification_content_text_release">Tap to download %1$s</string>
+<string name="app_update_notification_action_download">Download APK</string>
+<string name="app_update_notification_action_view_channel">View channel</string>
 <string name="update_release_display_with_build">%1$s (%2$s)</string>
 <string name="missions_header_finished">Finished</string>
 <string name="missions_header_pending">Pending</string>

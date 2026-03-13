@@ -16,6 +16,20 @@
         app:singleLineTitle="false"
         app:iconSpaceReserved="false" />
 
+    <Preference
+        android:key="@string/latest_update_info_key"
+        android:summary="@string/latest_update_summary_none"
+        android:title="@string/latest_update_title"
+        app:singleLineTitle="false"
+        app:iconSpaceReserved="false" />
+
+    <Preference
+        android:key="@string/download_latest_update_key"
+        android:summary="@string/download_latest_update_summary_none"
+        android:title="@string/download_latest_update_title"
+        app:singleLineTitle="false"
+        app:iconSpaceReserved="false" />
+
     <SwitchPreferenceCompat
         android:defaultValue="true"
         android:key="@string/update_app_key"
