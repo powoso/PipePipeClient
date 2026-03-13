@@ -577,6 +577,10 @@
 <string name="download_latest_update_title">Download latest APK</string>
 <string name="download_latest_update_summary_none">Check for updates first to enable direct APK download.</string>
 <string name="download_latest_update_summary">Download %1$s directly from %2$s</string>
+<string name="open_update_download_title">Open update download</string>
+<string name="open_update_download_summary">The latest APK is already downloading in the system downloader.</string>
+<string name="install_downloaded_update_title">Install downloaded APK</string>
+<string name="install_downloaded_update_summary">Install the downloaded %1$s build.</string>
 <!-- Minimize to exit action -->
 <string name="minimize_on_exit_title">Minimize on app switch</string>
 <string name="minimize_on_exit_summary">Action when switching to other app from main video player — %s</string>
@@ -607,6 +611,13 @@
 <string name="app_update_notification_content_text_release">Tap to download %1$s</string>
 <string name="app_update_notification_action_download">Download APK</string>
 <string name="app_update_notification_action_view_channel">View channel</string>
+<string name="app_update_download_started_title">Downloading %1$s</string>
+<string name="app_update_download_started_text">Saving the latest %1$s build for installation</string>
+<string name="app_update_download_started_toast">Downloading %1$s…</string>
+<string name="app_update_download_ready_title">%1$s is ready to install</string>
+<string name="app_update_download_ready_text">Tap to install the downloaded APK.</string>
+<string name="app_update_download_action_install">Install APK</string>
+<string name="app_update_install_permission_toast">Allow installs from this app, then tap Install downloaded APK again.</string>
 <string name="update_release_display_with_build">%1$s (%2$s)</string>
 <string name="missions_header_finished">Finished</string>
 <string name="missions_header_pending">Pending</string>

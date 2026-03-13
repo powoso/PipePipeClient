@@ -1,8 +1,6 @@
 package org.schabi.newpipe
 
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
@@ -10,7 +8,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.net.toUri
 import androidx.preference.PreferenceManager
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -22,6 +19,7 @@ import com.grack.nanojson.JsonParser
 import com.grack.nanojson.JsonParserException
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
+import org.schabi.newpipe.update.AppUpdateManager
 import org.schabi.newpipe.util.ReleaseVersionUtil.coerceUpdateCheckExpiry
 import org.schabi.newpipe.util.ReleaseVersionUtil.isLastUpdateCheckExpired
 import java.io.IOException
@@ -47,10 +45,9 @@ class NewVersionWorker(
         val hasNewRollingBuild = versionCompare == 0
             && BuildConfig.UPDATE_ROLLING_RELEASE
             && isNewerBuildId(BuildConfig.UPDATE_BUILD_ID, releaseUpdate.buildId)
-        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
 
         if (versionCompare >= 0 && !hasNewRollingBuild) {
-            clearStoredLatestRelease(prefs)
+            AppUpdateManager.clearLatestRelease(applicationContext)
             if (isManual) {
                 ContextCompat.getMainExecutor(applicationContext).execute {
                     Toast.makeText(
@@ -66,13 +63,22 @@ class NewVersionWorker(
             return
         }
 
-        storeLatestRelease(prefs, releaseUpdate)
+        AppUpdateManager.storeLatestRelease(
+            applicationContext,
+            releaseUpdate.versionName,
+            releaseUpdate.buildId,
+            releaseUpdate.apkUrl
+        )
 
-        val downloadPendingIntent = createOpenUrlPendingIntent(
-            releaseUpdate.apkUrl ?: BuildConfig.UPDATE_RELEASES_URL,
+        val downloadPendingIntent = AppUpdateManager.createStartUpdateDownloadPendingIntent(
+            applicationContext,
+            releaseUpdate.versionName,
+            releaseUpdate.buildId,
+            releaseUpdate.apkUrl,
             2000
         )
-        val channelPendingIntent = createOpenUrlPendingIntent(BuildConfig.UPDATE_RELEASES_URL, 2001)
+        val channelPendingIntent =
+            AppUpdateManager.createOpenUpdateChannelPendingIntent(applicationContext, 2001)
         val channelId = applicationContext.getString(R.string.app_update_notification_channel_id)
         val notificationBuilder = NotificationCompat.Builder(applicationContext, channelId)
             .setSmallIcon(R.drawable.ic_newpipe_update)
@@ -145,7 +151,7 @@ class NewVersionWorker(
                 includePreRelease)
 
             if (selectedRelease == null) {
-                clearStoredLatestRelease(prefs)
+                AppUpdateManager.clearLatestRelease(applicationContext)
             }
 
             selectedRelease?.let { release ->
@@ -270,51 +276,6 @@ class NewVersionWorker(
         }
         return universalUrl
     }
-
-    private fun createOpenUrlPendingIntent(url: String, requestCode: Int): PendingIntent {
-        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return PendingIntent.getActivity(
-            applicationContext,
-            requestCode,
-            intent,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            } else {
-                PendingIntent.FLAG_UPDATE_CURRENT
-            }
-        )
-    }
-
-    private fun storeLatestRelease(
-        prefs: android.content.SharedPreferences,
-        releaseUpdate: ReleaseUpdate
-    ) {
-        prefs.edit {
-            putString(
-                applicationContext.getString(R.string.latest_update_version_key),
-                releaseUpdate.versionName
-            )
-            putString(
-                applicationContext.getString(R.string.latest_update_build_id_key),
-                releaseUpdate.buildId
-            )
-            putString(
-                applicationContext.getString(R.string.latest_update_apk_url_key),
-                releaseUpdate.apkUrl
-            )
-        }
-    }
-
-    private fun clearStoredLatestRelease(prefs: android.content.SharedPreferences) {
-        prefs.edit {
-            remove(applicationContext.getString(R.string.latest_update_version_key))
-            remove(applicationContext.getString(R.string.latest_update_build_id_key))
-            remove(applicationContext.getString(R.string.latest_update_apk_url_key))
-        }
-    }
-
-
 
     override fun doWork(): Result {
         return try {

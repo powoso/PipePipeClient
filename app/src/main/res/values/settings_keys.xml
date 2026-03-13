@@ -475,6 +475,10 @@
     <string name="latest_update_version_key">latest_update_version_key</string>
     <string name="latest_update_build_id_key">latest_update_build_id_key</string>
     <string name="latest_update_apk_url_key">latest_update_apk_url_key</string>
+    <string name="update_download_id_key">update_download_id_key</string>
+    <string name="update_download_version_key">update_download_version_key</string>
+    <string name="update_download_build_id_key">update_download_build_id_key</string>
+    <string name="update_download_path_key">update_download_path_key</string>
     <string name="update_pref_screen_key">update_pref_screen_key</string>
     <string name="update_expiry_key">update_expiry_key</string>
 

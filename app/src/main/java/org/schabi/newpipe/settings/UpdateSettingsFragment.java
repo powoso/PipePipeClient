@@ -10,6 +10,7 @@ import androidx.preference.Preference;
 import org.schabi.newpipe.BuildConfig;
 import org.schabi.newpipe.NewVersionWorker;
 import org.schabi.newpipe.R;
+import org.schabi.newpipe.update.AppUpdateManager;
 import org.schabi.newpipe.util.external_communication.ShareUtils;
 
 public class UpdateSettingsFragment extends BasePreferenceFragment {
@@ -19,7 +20,11 @@ public class UpdateSettingsFragment extends BasePreferenceFragment {
             = (sharedPreferences, key) -> {
         if (TextUtils.equals(key, getString(R.string.latest_update_version_key))
                 || TextUtils.equals(key, getString(R.string.latest_update_build_id_key))
-                || TextUtils.equals(key, getString(R.string.latest_update_apk_url_key))) {
+                || TextUtils.equals(key, getString(R.string.latest_update_apk_url_key))
+                || TextUtils.equals(key, getString(R.string.update_download_id_key))
+                || TextUtils.equals(key, getString(R.string.update_download_version_key))
+                || TextUtils.equals(key, getString(R.string.update_download_build_id_key))
+                || TextUtils.equals(key, getString(R.string.update_download_path_key))) {
             refreshLatestUpdatePreferences();
         }
     };
@@ -106,32 +111,55 @@ public class UpdateSettingsFragment extends BasePreferenceFragment {
                 getString(R.string.latest_update_version_key), "");
         final String latestBuildId = defaultPreferences.getString(
                 getString(R.string.latest_update_build_id_key), "");
-        final String latestApkUrl = defaultPreferences.getString(
-                getString(R.string.latest_update_apk_url_key), "");
 
         final String latestReleaseName = formatReleaseDisplayName(latestVersion, latestBuildId);
         final boolean hasKnownUpdate = !TextUtils.isEmpty(latestVersion);
-        final boolean hasDownloadUrl = !TextUtils.isEmpty(latestApkUrl);
 
         latestUpdatePreference.setSummary(hasKnownUpdate
                 ? getString(R.string.latest_update_summary,
                 latestReleaseName, BuildConfig.UPDATE_SOURCE_LABEL)
                 : getString(R.string.latest_update_summary_none));
 
-        downloadLatestUpdatePreference.setSummary(hasKnownUpdate
-                ? getString(R.string.download_latest_update_summary,
-                latestReleaseName, BuildConfig.UPDATE_SOURCE_LABEL)
-                : getString(R.string.download_latest_update_summary_none));
-        downloadLatestUpdatePreference.setEnabled(hasKnownUpdate);
-        downloadLatestUpdatePreference.setOnPreferenceClickListener(preference -> {
-            if (!hasKnownUpdate) {
-                return false;
-            }
+        final AppUpdateManager.InstallActionMode actionMode =
+                AppUpdateManager.getInstallActionMode(requireContext());
+        final String actionReleaseName = AppUpdateManager.getActionReleaseDisplayName(requireContext());
 
-            ShareUtils.openUrlInBrowser(requireContext(),
-                    hasDownloadUrl ? latestApkUrl : BuildConfig.UPDATE_RELEASES_URL, false);
-            return true;
-        });
+        switch (actionMode) {
+            case INSTALL:
+                downloadLatestUpdatePreference.setTitle(R.string.install_downloaded_update_title);
+                downloadLatestUpdatePreference.setSummary(getString(
+                        R.string.install_downloaded_update_summary, actionReleaseName));
+                downloadLatestUpdatePreference.setEnabled(true);
+                downloadLatestUpdatePreference.setOnPreferenceClickListener(preference ->
+                        AppUpdateManager.installDownloadedUpdate(requireContext()));
+                break;
+            case OPEN_DOWNLOADS:
+                downloadLatestUpdatePreference.setTitle(R.string.open_update_download_title);
+                downloadLatestUpdatePreference.setSummary(
+                        getString(R.string.open_update_download_summary));
+                downloadLatestUpdatePreference.setEnabled(true);
+                downloadLatestUpdatePreference.setOnPreferenceClickListener(preference ->
+                        AppUpdateManager.openUpdateDownload(requireContext()));
+                break;
+            case DOWNLOAD:
+                downloadLatestUpdatePreference.setTitle(R.string.download_latest_update_title);
+                downloadLatestUpdatePreference.setSummary(hasKnownUpdate
+                        ? getString(R.string.download_latest_update_summary,
+                        latestReleaseName, BuildConfig.UPDATE_SOURCE_LABEL)
+                        : getString(R.string.download_latest_update_summary_none));
+                downloadLatestUpdatePreference.setEnabled(true);
+                downloadLatestUpdatePreference.setOnPreferenceClickListener(preference ->
+                        AppUpdateManager.handleLatestUpdateAction(requireContext()));
+                break;
+            case UNAVAILABLE:
+            default:
+                downloadLatestUpdatePreference.setTitle(R.string.download_latest_update_title);
+                downloadLatestUpdatePreference.setSummary(
+                        getString(R.string.download_latest_update_summary_none));
+                downloadLatestUpdatePreference.setEnabled(false);
+                downloadLatestUpdatePreference.setOnPreferenceClickListener(null);
+                break;
+        }
     }
 
     private String formatReleaseDisplayName(final String versionName, final String buildId) {
