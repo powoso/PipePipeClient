@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.preference.Preference;
 
 import org.schabi.newpipe.BuildConfig;
@@ -15,12 +16,14 @@ import org.schabi.newpipe.util.external_communication.ShareUtils;
 
 public class UpdateSettingsFragment extends BasePreferenceFragment {
     private Preference latestUpdatePreference;
+    private Preference latestUpdateChangelogPreference;
     private Preference downloadLatestUpdatePreference;
     private final SharedPreferences.OnSharedPreferenceChangeListener updateMetadataListener
             = (sharedPreferences, key) -> {
         if (TextUtils.equals(key, getString(R.string.latest_update_version_key))
                 || TextUtils.equals(key, getString(R.string.latest_update_build_id_key))
                 || TextUtils.equals(key, getString(R.string.latest_update_apk_url_key))
+                || TextUtils.equals(key, getString(R.string.latest_update_changelog_key))
                 || TextUtils.equals(key, getString(R.string.update_download_id_key))
                 || TextUtils.equals(key, getString(R.string.update_download_version_key))
                 || TextUtils.equals(key, getString(R.string.update_download_build_id_key))
@@ -77,6 +80,9 @@ public class UpdateSettingsFragment extends BasePreferenceFragment {
         latestUpdatePreference = findPreference(getString(R.string.latest_update_info_key));
         latestUpdatePreference.setSelectable(false);
 
+        latestUpdateChangelogPreference =
+                findPreference(getString(R.string.latest_update_changelog_info_key));
+
         downloadLatestUpdatePreference =
                 findPreference(getString(R.string.download_latest_update_key));
 
@@ -111,14 +117,29 @@ public class UpdateSettingsFragment extends BasePreferenceFragment {
                 getString(R.string.latest_update_version_key), "");
         final String latestBuildId = defaultPreferences.getString(
                 getString(R.string.latest_update_build_id_key), "");
+        final String latestChangelog = defaultPreferences.getString(
+                getString(R.string.latest_update_changelog_key), "");
 
         final String latestReleaseName = formatReleaseDisplayName(latestVersion, latestBuildId);
         final boolean hasKnownUpdate = !TextUtils.isEmpty(latestVersion);
+        final boolean hasChangelog = !TextUtils.isEmpty(latestChangelog);
 
         latestUpdatePreference.setSummary(hasKnownUpdate
                 ? getString(R.string.latest_update_summary,
                 latestReleaseName, BuildConfig.UPDATE_SOURCE_LABEL)
                 : getString(R.string.latest_update_summary_none));
+
+        latestUpdateChangelogPreference.setVisible(hasKnownUpdate);
+        latestUpdateChangelogPreference.setEnabled(hasChangelog);
+        latestUpdateChangelogPreference.setSummary(hasChangelog
+                ? getString(R.string.latest_update_changelog_summary, latestReleaseName)
+                : getString(R.string.latest_update_changelog_summary_none));
+        latestUpdateChangelogPreference.setOnPreferenceClickListener(hasChangelog
+                ? preference -> {
+                    showLatestUpdateChangelog(latestReleaseName, latestChangelog);
+                    return true;
+                }
+                : null);
 
         final AppUpdateManager.InstallActionMode actionMode =
                 AppUpdateManager.getInstallActionMode(requireContext());
@@ -160,6 +181,18 @@ public class UpdateSettingsFragment extends BasePreferenceFragment {
                 downloadLatestUpdatePreference.setOnPreferenceClickListener(null);
                 break;
         }
+    }
+
+    private void showLatestUpdateChangelog(final String latestReleaseName,
+                                           final String latestChangelog) {
+        new AlertDialog.Builder(requireContext())
+                .setTitle(getString(R.string.latest_update_changelog_dialog_title,
+                        latestReleaseName))
+                .setMessage(latestChangelog)
+                .setPositiveButton(R.string.ok, null)
+                .setNeutralButton(R.string.copy, (dialog, which) ->
+                        ShareUtils.copyToClipboard(requireContext(), latestChangelog))
+                .show();
     }
 
     private String formatReleaseDisplayName(final String versionName, final String buildId) {

@@ -31,7 +31,8 @@ class NewVersionWorker(
     private data class ReleaseUpdate(
         val versionName: String,
         val buildId: String?,
-        val apkUrl: String?
+        val apkUrl: String?,
+        val releaseNotes: String?
     )
 
     /**
@@ -67,7 +68,8 @@ class NewVersionWorker(
             applicationContext,
             releaseUpdate.versionName,
             releaseUpdate.buildId,
-            releaseUpdate.apkUrl
+            releaseUpdate.apkUrl,
+            releaseUpdate.releaseNotes
         )
 
         val downloadPendingIntent = AppUpdateManager.createStartUpdateDownloadPendingIntent(
@@ -159,7 +161,8 @@ class NewVersionWorker(
                     ReleaseUpdate(
                         versionName = extractReleaseVersionName(release),
                         buildId = extractReleaseBuildId(release),
-                        apkUrl = findCompatibleApkUrl(release, Build.SUPPORTED_ABIS)
+                        apkUrl = findCompatibleApkUrl(release, Build.SUPPORTED_ABIS),
+                        releaseNotes = extractReleaseNotes(release)
                     ),
                     inputData.getBoolean(IS_MANUAL, false)
                 )
@@ -208,6 +211,46 @@ class NewVersionWorker(
 
     private fun extractReleaseBuildId(release: JsonObject): String? {
         return readReleaseMetadataValue(release.getString("body"), "Build-ID")
+    }
+
+    private fun extractReleaseNotes(release: JsonObject): String? {
+        val body = release.getString("body")
+        if (body.isNullOrBlank()) {
+            return null
+        }
+
+        val normalizedLines = mutableListOf<String>()
+        var previousWasBlank = true
+
+        body.lineSequence()
+            .map { it.trimEnd() }
+            .filterNot { isReleaseMetadataLine(it) }
+            .forEach { line ->
+                val isBlank = line.isBlank()
+                if (isBlank) {
+                    if (!previousWasBlank) {
+                        normalizedLines += ""
+                    }
+                } else {
+                    normalizedLines += line
+                }
+                previousWasBlank = isBlank
+            }
+
+        while (normalizedLines.isNotEmpty() && normalizedLines.last().isBlank()) {
+            normalizedLines.removeAt(normalizedLines.lastIndex)
+        }
+
+        return normalizedLines.joinToString(separator = "\n").trim().ifEmpty { null }
+    }
+
+    private fun isReleaseMetadataLine(line: String): Boolean {
+        if (line.isBlank()) {
+            return false
+        }
+
+        val metadataPrefixes = listOf("Version-Name:", "Build-ID:", "Channel:", "Source:")
+        return metadataPrefixes.any { prefix -> line.startsWith(prefix, ignoreCase = true) }
     }
 
     private fun readReleaseMetadataValue(body: String?, key: String): String? {

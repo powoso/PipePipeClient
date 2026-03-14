@@ -606,6 +606,10 @@
 <string name="latest_update_title">Latest build found</string>
 <string name="latest_update_summary_none">No newer build has been found yet.</string>
 <string name="latest_update_summary">Latest available: %1$s from %2$s</string>
+<string name="latest_update_changelog_title">What\'s new</string>
+<string name="latest_update_changelog_summary_none">No changelog was included with the latest build.</string>
+<string name="latest_update_changelog_summary">View the changelog for %1$s before installing it.</string>
+<string name="latest_update_changelog_dialog_title">What\'s new in %1$s</string>
 <string name="download_latest_update_title">Download latest APK</string>
 <string name="download_latest_update_summary_none">Check for updates first to enable direct APK download.</string>
 <string name="download_latest_update_summary">Download %1$s directly from %2$s</string>
@@ -624,6 +628,7 @@
 <string name="wifi_only">Only on Wi-Fi</string>
 <string name="never">Never</string>
 <string name="list_view_mode">List view mode</string>
+<string name="copy">Copy</string>
 <string name="list">List</string>
 <string name="grid">Grid</string>
 <string name="large_grid">Large Grid</string>

@@ -55,13 +55,15 @@ public final class AppUpdateManager {
     public static void storeLatestRelease(@NonNull final Context context,
                                           @NonNull final String versionName,
                                           @Nullable final String buildId,
-                                          @Nullable final String apkUrl) {
+                                          @Nullable final String apkUrl,
+                                          @Nullable final String releaseNotes) {
         final SharedPreferences preferences = PreferenceManager
                 .getDefaultSharedPreferences(context);
         preferences.edit()
                 .putString(context.getString(R.string.latest_update_version_key), versionName)
                 .putString(context.getString(R.string.latest_update_build_id_key), buildId)
                 .putString(context.getString(R.string.latest_update_apk_url_key), apkUrl)
+                .putString(context.getString(R.string.latest_update_changelog_key), releaseNotes)
                 .apply();
     }
 
@@ -72,6 +74,7 @@ public final class AppUpdateManager {
                 .remove(context.getString(R.string.latest_update_version_key))
                 .remove(context.getString(R.string.latest_update_build_id_key))
                 .remove(context.getString(R.string.latest_update_apk_url_key))
+                .remove(context.getString(R.string.latest_update_changelog_key))
                 .apply();
         clearDownloadedUpdateIfInstalled(context);
     }

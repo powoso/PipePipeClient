@@ -235,6 +235,9 @@ object DebugBundleHelper {
         val latestApkUrl = preferences.getString(
             context.getString(R.string.latest_update_apk_url_key), ""
         ).orEmpty()
+        val latestChangelog = preferences.getString(
+            context.getString(R.string.latest_update_changelog_key), ""
+        ).orEmpty()
         val downloadedVersion = preferences.getString(
             context.getString(R.string.update_download_version_key), ""
         ).orEmpty()
@@ -250,6 +253,7 @@ object DebugBundleHelper {
             .put("rolling_release", BuildConfig.UPDATE_ROLLING_RELEASE)
             .put("latest_known_release", formatReleaseDisplayName(latestVersion, latestBuildId))
             .put("latest_known_apk_url", latestApkUrl)
+            .put("latest_known_changelog", latestChangelog)
             .put(
                 "downloaded_update",
                 formatReleaseDisplayName(downloadedVersion, downloadedBuildId)

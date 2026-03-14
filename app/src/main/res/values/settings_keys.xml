@@ -472,10 +472,12 @@
     <string name="update_channel_info_key">update_channel_info_key</string>
     <string name="open_update_channel_key">open_update_channel_key</string>
     <string name="latest_update_info_key">latest_update_info_key</string>
+    <string name="latest_update_changelog_info_key">latest_update_changelog_info_key</string>
     <string name="download_latest_update_key">download_latest_update_key</string>
     <string name="latest_update_version_key">latest_update_version_key</string>
     <string name="latest_update_build_id_key">latest_update_build_id_key</string>
     <string name="latest_update_apk_url_key">latest_update_apk_url_key</string>
+    <string name="latest_update_changelog_key">latest_update_changelog_key</string>
     <string name="update_download_id_key">update_download_id_key</string>
     <string name="update_download_version_key">update_download_version_key</string>
     <string name="update_download_build_id_key">update_download_build_id_key</string>
